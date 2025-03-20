@@ -57,6 +57,12 @@ gulp.task("firefox-copy", () => {
     .pipe(gulp.dest(`build/${firefox_folder_name}`));
 });
 
+gulp.task("copy-LICENSE", () => {
+  return gulp
+    .src(["LICENSE"], {encoding: false})
+    .pipe(gulp.dest(`build/${firefox_folder_name}`));
+});
+
 gulp.task("firefox-babel", () => {
   return Promise.all([
     new Promise((resolve, reject) => {
@@ -224,6 +230,7 @@ gulp.task(
   "firefox-build",
   gulp.series(
     "firefox-copy",
+    "copy-LICENSE",
     "firefox-rename",
     "firefox-babel",
     "firefox-move-sourcemap",
