@@ -12,7 +12,8 @@
     "polyfill": "npx webpack --entry=./polyfill.js --output-path=./src/lib --output-filename=polyfill.js -d inline-source-map"
   },
   "dependencies": {
-    "core-js": "^3.26.1"
+    "core-js": "^3.26.1",
+    "htmlparser2": "^10.0.0"
   },
   "devDependencies": {
     "@babel/preset-env": "^7.20.2",

@@ -10,3 +10,4 @@ require("core-js/modules/esnext.string.replace-all.js");
 require("core-js/modules/es.object.from-entries.js");
 require("core-js/modules/es.array.includes.js");
 require("core-js/modules/web.structured-clone.js");
+globalThis.htmlparser2 = require("htmlparser2");

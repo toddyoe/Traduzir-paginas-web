@@ -1144,23 +1144,22 @@ const translationService = (function () {
         function cbTransformResponse(result, dontSortResults) {
           const resultArray = [];
 
-          const parser = new DOMParser();
-          const doc = parser.parseFromString(result, "text/html");
+          const doc = htmlparser2.parseDocument(result);
           let currText = "";
-          doc.body.childNodes.forEach((node) => {
+          doc.childNodes.forEach((node) => {
             if (dontSortResults) {
-              if (node.nodeName == "#text") {
-                currText += node.textContent;
+              if (node.type === "text") {
+                currText += node.data;
               } else {
-                resultArray.push(currText + node.textContent);
+                resultArray.push(currText + (node.children?.[0]?.data || ""));
                 currText = "";
               }
             } else {
-              if (node.nodeName == "#text") {
-                currText += node.textContent;
+              if (node.type === "text") {
+                currText += node.data;
               } else {
-                const id = parseInt(node.nodeName.slice(1)) - 10;
-                resultArray[id] = currText + node.textContent;
+                const id = parseInt(node.name.slice(1)) - 10;
+                resultArray[id] = currText + (node.children?.[0]?.data || "");
                 currText = "";
               }
             }
