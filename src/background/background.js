@@ -362,7 +362,7 @@ if (typeof chrome.contextMenus !== "undefined") {
     chrome.contextMenus.create({
       id: "browserAction-showPopup",
       title: twpI18n.getMessage("btnShowPopup"),
-      contexts: ["browser_action"],
+      contexts: ["action"],
     });
     chrome.contextMenus.create({
       id: "pageAction-showPopup",
@@ -372,17 +372,17 @@ if (typeof chrome.contextMenus !== "undefined") {
     chrome.contextMenus.create({
       id: "never-translate",
       title: twpI18n.getMessage("btnNeverTranslate"),
-      contexts: ["browser_action", "page_action"],
+      contexts: ["action", "page_action"],
     });
     chrome.contextMenus.create({
       id: "more-options",
       title: twpI18n.getMessage("btnMoreOptions"),
-      contexts: ["browser_action", "page_action"],
+      contexts: ["action", "page_action"],
     });
     chrome.contextMenus.create({
       id: "browserAction-translate-pdf",
       title: twpI18n.getMessage("msgTranslatePDF"),
-      contexts: ["browser_action"],
+      contexts: ["action"],
     });
     chrome.contextMenus.create({
       id: "pageAction-translate-pdf",

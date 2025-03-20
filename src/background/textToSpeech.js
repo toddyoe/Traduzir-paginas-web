@@ -3,6 +3,9 @@
 (function () {
   let creating; // A global promise to avoid concurrency issues
   async function setupOffscreenDocument(path) {
+    if (!("offscreen" in chrome)) {
+      return;
+    }
     // Check all windows controlled by the service worker to see if one
     // of them is the offscreen document with the given path
     const offscreenUrl = chrome.runtime.getURL(path);
@@ -34,7 +37,7 @@
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "textToSpeech") {
       setupOffscreenDocument('off_screen.html')
-        .finally(() => {
+        .then(() => {
           if (twpConfig.get("textToSpeechService") === "bing") {
             chrome.runtime.sendMessage({ action: "offscreen_bing_textToSpeech", text: request.text, targetLanguage: request.targetLanguage }, 
               (response) => {
