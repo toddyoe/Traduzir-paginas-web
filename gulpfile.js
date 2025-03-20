@@ -154,6 +154,18 @@ gulp.task("firefox-self-hosted", (cb) => {
   });
 });
 
+gulp.task("firefox-rename", (cb) => {
+  fs.renameSync(
+    `build/${firefox_folder_name}/manifest.json`,
+    `build/${firefox_folder_name}/chrome-manifest.json`
+  );
+  fs.renameSync(
+    `build/${firefox_folder_name}/firefox-manifest.json`,
+    `build/${firefox_folder_name}/manifest.json`
+  );
+  cb();
+});
+
 gulp.task("firefox-zip", () => {
   return gulp
     .src([`build/${firefox_folder_name}/**/*`], {encoding: false})
@@ -177,10 +189,10 @@ gulp.task("chrome-copy-from-firefox", () => {
 gulp.task("chrome-rename", (cb) => {
   fs.renameSync(
     `build/${chromium_folder_name}/manifest.json`,
-    `build/${chromium_folder_name}/firefox_manifest.json`
+    `build/${chromium_folder_name}/firefox-manifest.json`
   );
   fs.renameSync(
-    `build/${chromium_folder_name}/chrome_manifest.json`,
+    `build/${chromium_folder_name}/chrome-manifest.json`,
     `build/${chromium_folder_name}/manifest.json`
   );
   cb();
@@ -212,6 +224,7 @@ gulp.task(
   "firefox-build",
   gulp.series(
     "firefox-copy",
+    "firefox-rename",
     "firefox-babel",
     "firefox-move-sourcemap",
     "firefox-self-hosted",

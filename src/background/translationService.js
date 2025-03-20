@@ -212,7 +212,7 @@ const translationService = (function () {
             ])
           );
 
-          const http = new XMLHttpRequest();
+          const http = new XMLHttpRequestShim();
           http.open(
             "GET",
             "https://translate.googleapis.com/_/translate_http/_/js/k=translate_http.tr.en_US.YusFYy3P_ro.O/am=AAg/d=1/exm=el_conf/ed=1/rs=AN8SPfq1Hb8iJRleQqQc8zhdzXmF9E56eQ/m=el_main"
@@ -299,7 +299,7 @@ const translationService = (function () {
         if (updateYandexSid) {
           YandexHelper.#lastRequestSidTime = Date.now();
 
-          const http = new XMLHttpRequest();
+          const http = new XMLHttpRequestShim();
           http.open(
             "GET",
             "https://translate.yandex.net/website-widget/v1/widget.js?widgetId=ytWidget&pageLang=es&widgetTheme=light&autoMode=false"
@@ -377,7 +377,7 @@ const translationService = (function () {
         if (updateBingAuth) {
           BingHelper.#lastRequestAuthTime = Date.now();
 
-          const http = new XMLHttpRequest();
+          const http = new XMLHttpRequestShim();
           http.open("GET", "https://edge.microsoft.com/translate/auth");
           http.send();
           http.onload = (e) => {
@@ -503,7 +503,7 @@ const translationService = (function () {
        * @type {Map<string, TranslationInfo>}
        *
        * It works as an in-memory translation cache.
-       * Ensures that two identical requests share the same `XMLHttpRequest`.
+       * Ensures that two identical requests share the same `XMLHttpRequestShim`.
        * */
       this.translationsInProgress = new Map();
     }
@@ -616,7 +616,7 @@ const translationService = (function () {
     }
 
     /**
-     * Makes a request using the *XMLHttpRequest* API. Returns a promise that will be resolved with the result of the request. If the request fails, the promise will be rejected.
+     * Makes a request using the *XMLHttpRequestShim* API. Returns a promise that will be resolved with the result of the request. If the request fails, the promise will be rejected.
      * @param {string} sourceLanguage
      * @param {string} targetLanguage
      * @param {Array<TranslationInfo>} requests
@@ -624,7 +624,7 @@ const translationService = (function () {
      */
     async makeRequest(sourceLanguage, targetLanguage, requests) {
       return await new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
+        const xhr = new XMLHttpRequestShim();
         xhr.open(
           this.xhrMethod,
           this.baseURL +

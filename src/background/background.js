@@ -290,16 +290,16 @@ function resetPageAction(tabId, forceShow = false) {
 
 function resetBrowserAction(forceShow = false) {
   if (twpConfig.get("translateClickingOnce") === "yes" && !forceShow) {
-    chrome.browserAction.setPopup({
+    chrome.action.setPopup({
       popup: "",
     });
   } else {
     if (twpConfig.get("useOldPopup") === "yes") {
-      chrome.browserAction.setPopup({
+      chrome.action.setPopup({
         popup: "popup/old-popup.html",
       });
     } else {
-      chrome.browserAction.setPopup({
+      chrome.action.setPopup({
         popup: "popup/popup.html",
       });
     }
@@ -452,8 +452,8 @@ if (typeof chrome.contextMenus !== "undefined") {
     } else if (info.menuItemId == "browserAction-showPopup") {
       resetBrowserAction(true);
 
-      if (chrome.browserAction.openPopup) {
-        chrome.browserAction.openPopup();
+      if (chrome.action.openPopup) {
+        chrome.action.openPopup();
       }
 
       resetBrowserAction();
@@ -475,9 +475,9 @@ if (typeof chrome.contextMenus !== "undefined") {
       if (
         mimeType &&
         mimeType.toLowerCase() === "application/pdf" &&
-        typeof chrome.browserAction.openPopup !== "undefined"
+        typeof chrome.action.openPopup !== "undefined"
       ) {
-        chrome.browserAction.openPopup();
+        chrome.action.openPopup();
       } else {
         tabsCreate("https://pdf.translatewebpages.org/");
       }
@@ -578,7 +578,7 @@ twpConfig.onReady(() => {
       }
     });
 
-    chrome.browserAction.onClicked.addListener((tab) => {
+    chrome.action.onClicked.addListener((tab) => {
       chrome.tabs.sendMessage(
         tab.id,
         {
@@ -598,7 +598,7 @@ twpConfig.onReady(() => {
         }
       });
     }
-    chrome.browserAction.onClicked.addListener((tab) => {
+    chrome.action.onClicked.addListener((tab) => {
       if (twpConfig.get("translateClickingOnce") === "yes") {
         sendToggleTranslationMessage(tab.id);
       }
@@ -695,16 +695,16 @@ twpConfig.onReady(() => {
       }
 
       let darkMode = false;
-      darkMode = matchMedia("(prefers-color-scheme: dark)").matches;
+      darkMode = false;//matchMedia("(prefers-color-scheme: dark)").matches;
       updateIconInAllTabs();
 
-      matchMedia("(prefers-color-scheme: dark)").addEventListener(
-        "change",
-        () => {
-          darkMode = matchMedia("(prefers-color-scheme: dark)").matches;
-          updateIconInAllTabs();
-        }
-      );
+      // matchMedia("(prefers-color-scheme: dark)").addEventListener(
+      //   "change",
+      //   () => {
+      //     darkMode = matchMedia("(prefers-color-scheme: dark)").matches;
+      //     updateIconInAllTabs();
+      //   }
+      // );
 
       function getSVGIcon(incognito = false) {
         const svgXml = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
@@ -868,17 +868,17 @@ twpConfig.onReady(() => {
             }
           }
 
-          if (chrome.browserAction) {
+          if (chrome.action) {
             if (
               pageLanguageState === "translated" &&
               twpConfig.get("popupBlueWhenSiteIsTranslated") === "yes"
             ) {
-              chrome.browserAction.setIcon({
+              chrome.action.setIcon({
                 tabId: tabId,
                 path: "/icons/icon-32-translated.png",
               });
             } else {
-              chrome.browserAction.setIcon({
+              chrome.action.setIcon({
                 tabId: tabId,
                 path: "/icons/icon-32.png",
               });
