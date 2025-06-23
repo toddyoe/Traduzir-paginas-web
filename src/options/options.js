@@ -1108,6 +1108,8 @@ twpConfig
         document
           .querySelectorAll("#textTranslatorService option")
           .forEach((option) => option.setAttribute("hidden", ""));
+
+        // Show enabled built-in services
         enabledServices.forEach((svName) => {
           let option;
           option = $(`#pageTranslatorService option[value="${svName}"]`);
@@ -1115,6 +1117,20 @@ twpConfig
             option.removeAttribute("hidden");
           }
           option = $(`#textTranslatorService option[value="${svName}"]`);
+          if (option) {
+            option.removeAttribute("hidden");
+          }
+        });
+
+        // Show custom services that are configured
+        const customServices = twpConfig.get("customServices");
+        customServices.forEach((cs) => {
+          let option;
+          option = $(`#pageTranslatorService option[value="${cs.name}"]`);
+          if (option) {
+            option.removeAttribute("hidden");
+          }
+          option = $(`#textTranslatorService option[value="${cs.name}"]`);
           if (option) {
             option.removeAttribute("hidden");
           }
@@ -1193,6 +1209,31 @@ twpConfig
 
         updateServiceSelector(twpConfig.get("enabledServices"));
       });
+    }
+
+    // DeepLX checkbox handling (custom service)
+    {
+      const updateDeepLXCheckbox = () => {
+        const deeplxService = twpConfig.get("customServices").find((cs) => cs.name === "deeplx");
+        $("#btnEnableDeepLX").checked = !!deeplxService;
+        $("#btnEnableDeepLX").disabled = !deeplxService;
+      };
+
+      $("#btnEnableDeepLX").oninput = (e) => {
+        const deeplxService = twpConfig.get("customServices").find((cs) => cs.name === "deeplx");
+        if (!deeplxService) {
+          e.target.checked = false;
+          alert("Please configure DeepLX service first in the Experimental section.");
+          return;
+        }
+        // DeepLX checkbox is just for display, actual control is in customServices
+      };
+
+      // Initialize DeepLX checkbox state
+      updateDeepLXCheckbox();
+
+      // We'll update the checkbox when DeepLX service is added/removed
+      // This will be handled by modifying the existing add/remove functions
     }
 
     // storage options
@@ -1460,6 +1501,143 @@ twpConfig
       testDeepLFreeApiKey(deepl_freeapi.apiKey).then((response) => {
         $("#deeplApiResponse").textContent = JSON.stringify(response);
       });
+    }
+
+    // Function to detect API version from URL
+    const detectApiVersion = (url) => {
+      if (url.includes("/v2/translate")) {
+        return "official";
+      } else if (url.includes("/v1/translate")) {
+        return "pro";
+      } else if (url.includes("/translate")) {
+        return "free";
+      } else {
+        // If no translate endpoint specified, assume free version
+        return "free";
+      }
+    };
+
+    // DeepLX configuration
+    $("#addDeepLX").onclick = () => {
+      const urlValue = $("#deeplxURL").value.trim();
+
+      if (!urlValue) {
+        alert("Please provide a DeepLX API endpoint URL");
+        return;
+      }
+
+      try {
+        // More flexible URL validation
+        let validUrl = urlValue;
+
+        // Add protocol if missing
+        if (!urlValue.startsWith('http://') && !urlValue.startsWith('https://')) {
+          validUrl = 'https://' + urlValue;
+        }
+
+        // Validate URL format
+        const urlObj = new URL(validUrl);
+
+        // Check if it's a reasonable URL
+        if (!urlObj.hostname || urlObj.hostname.length < 3) {
+          throw new Error("Invalid hostname");
+        }
+
+        // Auto-detect API version
+        const apiVersion = detectApiVersion(validUrl);
+
+        const deeplx = {
+          name: "deeplx",
+          url: validUrl,
+          apiVersion: apiVersion,
+          token: $("#deeplxTOKEN").value.trim(),
+        };
+
+
+
+        const customServices = twpConfig.get("customServices");
+
+        const index = customServices.findIndex((cs) => cs.name === "deeplx");
+        if (index !== -1) {
+          customServices.splice(index, 1);
+        }
+
+        customServices.push(deeplx);
+        twpConfig.set("customServices", customServices);
+        chrome.runtime.sendMessage({ action: "createDeepLXService", deeplx });
+
+        // Trigger service selector update by simulating a service checkbox change
+        // This will call the existing updateServiceSelector function
+        $("#btnEnableGoogle").dispatchEvent(new Event('input'));
+
+        // Show success message with detected API version
+        const versionText = apiVersion === "free" ? "Free" : apiVersion === "pro" ? "Pro" : "Official";
+        $("#deeplxApiResponse").textContent = `DeepLX service added successfully! (${versionText} API detected)`;
+        $("#deeplxApiResponse").style.color = "green";
+
+        // Update the URL field with the corrected URL
+        $("#deeplxURL").value = validUrl;
+
+        // Update DeepLX checkbox
+        $("#btnEnableDeepLX").checked = true;
+        $("#btnEnableDeepLX").disabled = false;
+
+
+      } catch (e) {
+        $("#deeplxApiResponse").textContent = `Error: ${e.message || "Invalid URL format"}. Please provide a valid URL like: https://api.deeplx.org/translate`;
+        $("#deeplxApiResponse").style.color = "red";
+      }
+    };
+
+    $("#removeDeepLX").onclick = () => {
+      const customServices = twpConfig.get("customServices");
+      const index = customServices.findIndex((cs) => cs.name === "deeplx");
+
+      if (index !== -1) {
+        customServices.splice(index, 1);
+        twpConfig.set("customServices", customServices);
+        chrome.runtime.sendMessage(
+          { action: "removeDeepLXService" },
+          checkedLastError
+        );
+
+        // Trigger service selector update by simulating a service checkbox change
+        $("#btnEnableGoogle").dispatchEvent(new Event('input'));
+      }
+
+      if (twpConfig.get("textTranslatorService") === "deeplx") {
+        twpConfig.set(
+          "textTranslatorService",
+          twpConfig.get("pageTranslatorService")
+        );
+      }
+      if (twpConfig.get("pageTranslatorService") === "deeplx") {
+        twpConfig.set("pageTranslatorService", "google");
+      }
+
+      $("#deeplxURL").value = "";
+      $("#deeplxTOKEN").value = "";
+      $("#deeplxApiResponse").textContent = "";
+
+      // Update DeepLX checkbox
+      $("#btnEnableDeepLX").checked = false;
+      $("#btnEnableDeepLX").disabled = true;
+
+
+    };
+
+    const deeplx = twpConfig
+      .get("customServices")
+      .find((cs) => cs.name === "deeplx");
+    if (deeplx) {
+      $("#deeplxURL").value = deeplx.url;
+      $("#deeplxTOKEN").value = deeplx.token || "";
+      // Update DeepLX checkbox on page load
+      $("#btnEnableDeepLX").checked = true;
+      $("#btnEnableDeepLX").disabled = false;
+    } else {
+      $("#btnEnableDeepLX").checked = false;
+      $("#btnEnableDeepLX").disabled = true;
     }
 
     $("#showMobilePopupOnDesktop").onchange = (e) => {

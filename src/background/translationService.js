@@ -1531,6 +1531,139 @@ const translationService = (function () {
     })();
   };
 
+  /**
+   * Creates the DeepLX translation service from URL, API version and optional token
+   * @param {string} url
+   * @param {string} apiVersion - API version: "free", "pro", or "official"
+   * @param {string} token - Optional access token
+   * @returns {Service} deeplxService
+   */
+  const createDeepLXService = (url, apiVersion = "free", token = "") => {
+    // Use the URL directly as provided by user
+    const endpoint = url;
+
+    return new (class extends Service {
+      constructor() {
+        super(
+          "deeplx",
+          endpoint,
+          "POST",
+          function cbTransformRequest(sourceArray) {
+            return sourceArray[0];
+          },
+          function cbParseResponse(response) {
+            if (apiVersion === "official") {
+              // Official endpoint returns different format
+              return [
+                {
+                  text: response.translations[0].text,
+                  detectedLanguage: response.translations[0].detected_source_language || "auto",
+                },
+              ];
+            } else {
+              // Free and Pro endpoints return same format
+              return [
+                {
+                  text: response.data,
+                  detectedLanguage: response.source_lang || "auto",
+                },
+              ];
+            }
+          },
+          function cbTransformResponse(result, dontSortResults) {
+            return [result];
+          },
+          null,
+          function cbGetRequestBody(sourceLanguage, targetLanguage, requests) {
+            // Language mapping for DeepLX compatibility (similar to DeepL)
+            let mappedTargetLanguage = targetLanguage;
+            let mappedSourceLanguage = sourceLanguage;
+
+            // Map target language
+            if (targetLanguage === "pt") {
+              mappedTargetLanguage = "pt-BR";
+            } else if (targetLanguage === "no") {
+              mappedTargetLanguage = "nb";
+            } else if (targetLanguage.startsWith("zh-")) {
+              mappedTargetLanguage = "zh";
+            } else if (targetLanguage.startsWith("fr-")) {
+              mappedTargetLanguage = "fr";
+            } else if (targetLanguage.startsWith("en-")) {
+              mappedTargetLanguage = "en";
+            }
+
+            // Map source language (if not auto)
+            if (sourceLanguage !== "auto") {
+              if (sourceLanguage === "pt") {
+                mappedSourceLanguage = "pt-BR";
+              } else if (sourceLanguage === "no") {
+                mappedSourceLanguage = "nb";
+              } else if (sourceLanguage.startsWith("zh-")) {
+                mappedSourceLanguage = "zh";
+              } else if (sourceLanguage.startsWith("fr-")) {
+                mappedSourceLanguage = "fr";
+              } else if (sourceLanguage.startsWith("en-")) {
+                mappedSourceLanguage = "en";
+              }
+            }
+
+            let requestBody;
+
+            if (apiVersion === "official") {
+              // Official endpoint format (like DeepL API)
+              requestBody = {
+                text: [requests[0].originalText],
+                target_lang: mappedTargetLanguage,
+              };
+              // Only add source_lang if it's not auto
+              if (mappedSourceLanguage !== "auto") {
+                requestBody.source_lang = mappedSourceLanguage;
+              }
+            } else {
+              // Free and Pro endpoint format
+              requestBody = {
+                text: requests[0].originalText,
+                source_lang: mappedSourceLanguage === "auto" ? "auto" : mappedSourceLanguage,
+                target_lang: mappedTargetLanguage,
+              };
+            }
+
+
+
+            return JSON.stringify(requestBody);
+          },
+          function cbGetExtraHeaders() {
+            const headers = [
+              {
+                name: "Content-Type",
+                value: "application/json",
+              },
+            ];
+
+            // Add Authorization header if token is provided
+            if (token && token.trim() !== "") {
+              if (apiVersion === "official") {
+                // Official endpoint uses DeepL-Auth-Key format
+                headers.push({
+                  name: "Authorization",
+                  value: "DeepL-Auth-Key " + token.trim(),
+                });
+              } else {
+                // Free and Pro endpoints use Bearer token
+                headers.push({
+                  name: "Authorization",
+                  value: "Bearer " + token.trim(),
+                });
+              }
+            }
+
+            return headers;
+          }
+        );
+      }
+    })();
+  };
+
   /** @type {Map<string, Service>} */
   const serviceList = new Map();
 
@@ -1567,11 +1700,17 @@ const translationService = (function () {
     dontSaveInPersistentCache = false,
     dontSortResults = false
   ) => {
+    const originalServiceName = serviceName;
     serviceName = twpLang.getAlternativeService(
       targetLanguage,
       serviceName,
       true
     );
+    // If getAlternativeService returns null, use the original service name
+    if (serviceName === null || serviceName === undefined) {
+      serviceName = originalServiceName;
+    }
+
     const service = getSafeServiceByName(serviceName);
     return await service.translate(
       sourceLanguage,
@@ -1589,11 +1728,17 @@ const translationService = (function () {
     sourceArray,
     dontSaveInPersistentCache = false
   ) => {
+    const originalServiceName = serviceName;
     serviceName = twpLang.getAlternativeService(
       targetLanguage,
       serviceName,
       false
     );
+    // If getAlternativeService returns null, use the original service name
+    if (serviceName === null || serviceName === undefined) {
+      serviceName = originalServiceName;
+    }
+
     const service = getSafeServiceByName(serviceName);
     return (
       await service.translate(
@@ -1612,11 +1757,17 @@ const translationService = (function () {
     originalText,
     dontSaveInPersistentCache = false
   ) => {
+    const originalServiceName = serviceName;
     serviceName = twpLang.getAlternativeService(
       targetLanguage,
       serviceName,
       false
     );
+    // If getAlternativeService returns null, use the original service name
+    if (serviceName === null || serviceName === undefined) {
+      serviceName = originalServiceName;
+    }
+
     const service = getSafeServiceByName(serviceName);
     return (
       await service.translate(
@@ -1709,6 +1860,13 @@ const translationService = (function () {
         "deepl",
         /** @type {Service} */ /** @type {?} */ (deeplService)
       );
+    } else if (request.action === "createDeepLXService") {
+      serviceList.set(
+        "deeplx",
+        createDeepLXService(request.deeplx.url, request.deeplx.apiVersion, request.deeplx.token)
+      );
+    } else if (request.action === "removeDeepLXService") {
+      serviceList.delete("deeplx");
     }
   });
 
@@ -1727,6 +1885,13 @@ const translationService = (function () {
         .get("customServices")
         .find((cs) => cs.name === "deepl_freeapi");
       serviceList.set("deepl", createDeeplFreeApiService(deepl_freeapi.apiKey));
+    }
+
+    if (twpConfig.get("customServices").find((cs) => cs.name === "deeplx")) {
+      const deeplx = twpConfig
+        .get("customServices")
+        .find((cs) => cs.name === "deeplx");
+      serviceList.set("deeplx", createDeepLXService(deeplx.url, deeplx.apiVersion || "free", deeplx.token));
     }
 
     const proxyServers = twpConfig.get("proxyServers");

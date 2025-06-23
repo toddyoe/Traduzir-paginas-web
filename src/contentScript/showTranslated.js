@@ -427,6 +427,7 @@ Promise.all([twpConfig.onReady(), getTabHostName()]).then(function (_) {
                         <li title="Bing" id="sBing">b</li>
                         <li title="Yandex" id="sYandex">y</li>
                         <li title="DeepL" id="sDeepL" hidden>d</li>
+                        <li title="DeepLX" id="sDeepLX" hidden>x</li>
                         <li title="Listen" data-i18n-title="btnListen" id="listen">
                             <svg version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
                             width="14px" height="12px" viewBox="0 0 93.038 93.038" xml:space="preserve">
@@ -552,6 +553,7 @@ Promise.all([twpConfig.onReady(), getTabHostName()]).then(function (_) {
     const sYandex = shadowRoot.getElementById("sYandex");
     const sBing = shadowRoot.getElementById("sBing");
     const sDeepL = shadowRoot.getElementById("sDeepL");
+    const sDeepLX = shadowRoot.getElementById("sDeepLX");
 
     sGoogle.onclick = () => {
       currentTextTranslatorService = "google";
@@ -562,6 +564,7 @@ Promise.all([twpConfig.onReady(), getTabHostName()]).then(function (_) {
       sYandex.classList.remove("selected");
       sBing.classList.remove("selected");
       sDeepL.classList.remove("selected");
+      sDeepLX.classList.remove("selected");
 
       sGoogle.classList.add("selected");
     };
@@ -574,6 +577,7 @@ Promise.all([twpConfig.onReady(), getTabHostName()]).then(function (_) {
       sYandex.classList.remove("selected");
       sBing.classList.remove("selected");
       sDeepL.classList.remove("selected");
+      sDeepLX.classList.remove("selected");
 
       sYandex.classList.add("selected");
     };
@@ -586,6 +590,7 @@ Promise.all([twpConfig.onReady(), getTabHostName()]).then(function (_) {
       sYandex.classList.remove("selected");
       sBing.classList.remove("selected");
       sDeepL.classList.remove("selected");
+      sDeepLX.classList.remove("selected");
 
       sBing.classList.add("selected");
     };
@@ -598,8 +603,22 @@ Promise.all([twpConfig.onReady(), getTabHostName()]).then(function (_) {
       sYandex.classList.remove("selected");
       sBing.classList.remove("selected");
       sDeepL.classList.remove("selected");
+      sDeepLX.classList.remove("selected");
 
       sDeepL.classList.add("selected");
+    };
+    sDeepLX.onclick = () => {
+      currentTextTranslatorService = "deeplx";
+      twpConfig.set("textTranslatorService", "deeplx");
+      translateThisNode(null, true);
+
+      sGoogle.classList.remove("selected");
+      sYandex.classList.remove("selected");
+      sBing.classList.remove("selected");
+      sDeepL.classList.remove("selected");
+      sDeepLX.classList.remove("selected");
+
+      sDeepLX.classList.add("selected");
     };
 
     const setTargetLanguage = shadowRoot.getElementById("setTargetLanguage");
@@ -668,8 +687,38 @@ Promise.all([twpConfig.onReady(), getTabHostName()]).then(function (_) {
       sDeepL.classList.add("selected");
     } else if (currentTextTranslatorService == "bing") {
       sBing.classList.add("selected");
+    } else if (currentTextTranslatorService == "deeplx") {
+      sDeepLX.classList.add("selected");
     } else {
       sGoogle.classList.add("selected");
+    }
+
+    // Show/hide service buttons based on configuration
+    const enabledServices = twpConfig.get("enabledServices");
+    if (enabledServices.includes("google")) {
+      sGoogle.removeAttribute("hidden");
+    } else {
+      sGoogle.setAttribute("hidden", "");
+    }
+    if (enabledServices.includes("bing")) {
+      sBing.removeAttribute("hidden");
+    } else {
+      sBing.setAttribute("hidden", "");
+    }
+    if (enabledServices.includes("yandex")) {
+      sYandex.removeAttribute("hidden");
+    } else {
+      sYandex.setAttribute("hidden", "");
+    }
+    if (enabledServices.includes("deepl")) {
+      sDeepL.removeAttribute("hidden");
+    } else {
+      sDeepL.setAttribute("hidden", "");
+    }
+    if (twpConfig.get("customServices").find((cs) => cs.name === "deeplx")) {
+      sDeepLX.removeAttribute("hidden");
+    } else {
+      sDeepLX.setAttribute("hidden", "");
     }
   }
 

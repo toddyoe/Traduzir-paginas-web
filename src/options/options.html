@@ -290,6 +290,7 @@
             <option value="google">Google</option>
             <option value="bing">Bing</option>
             <option value="yandex">Yandex</option>
+            <option value="deeplx">DeepLX</option>
           </select>
           <br />
           <p>
@@ -300,6 +301,7 @@
             <option value="bing">Bing</option>
             <option value="yandex">Yandex</option>
             <option value="deepl">DeepL</option>
+            <option value="deeplx">DeepLX</option>
           </select>
           <br />
           <p>
@@ -475,6 +477,9 @@
             <label for="btnEnableDeepL" style="user-select: none;"><input type="checkbox" id="btnEnableDeepL" checked>
               DeepL</label>
             <br>
+            <label for="btnEnableDeepLX" style="user-select: none;"><input type="checkbox" id="btnEnableDeepLX">
+              DeepLX</label>
+            <br>
           </div>
         </div>
         <p>
@@ -600,6 +605,23 @@
           <button id="addDeepL">Add DeepL Free API</button>
           <button id="removeDeepL">Remove DeepL Free API</button>
           <p id="deeplApiResponse"></p>
+        </div>
+        <hr>
+        <div>
+          <h3>Configure your DeepLX server for text and page translation.</h3>
+          <p>Enter the complete API endpoint URL. The system will automatically detect the API version.</p>
+          <label for="deeplxURL">DeepLX API Endpoint URL</label><br>
+          <input type="text" id="deeplxURL" placeholder="https://api.deeplx.org/translate"
+            style="width: 90%;" autocomplete="off" spellcheck="false"><br>
+          <small>Examples: https://api.deeplx.org/translate, https://api.deeplx.org/v1/translate, https://api.deeplx.org/v2/translate</small><br>
+          <br>
+          <label for="deeplxTOKEN">Your Access Token (Optional)</label><br>
+          <input type="text" id="deeplxTOKEN" placeholder="your_access_token" style="width: 90%;"
+            autocomplete="off" spellcheck="false"><br>
+          <br>
+          <button id="addDeepLX">Add DeepLX</button>
+          <button id="removeDeepLX">Remove DeepLX</button>
+          <p id="deeplxApiResponse"></p>
         </div>
         <hr>
         <div>
