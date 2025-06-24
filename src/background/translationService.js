@@ -1532,133 +1532,327 @@ const translationService = (function () {
   };
 
   /**
-   * Creates the DeepLX translation service from URL, API version and optional token
-   * @param {string} url
-   * @param {string} apiVersion - API version: "free", "pro", or "official"
-   * @param {string} token - Optional access token
-   * @returns {Service} deeplxService
+   * DeepLX Load Balancer for managing multiple endpoints
    */
-  const createDeepLXService = (url, apiVersion = "free", token = "") => {
-    // Use the URL directly as provided by user
-    const endpoint = url;
+  class DeepLXLoadBalancer {
+    constructor(services, strategy = "random") {
+      this.services = services.filter(s => s.enabled);
+      this.strategy = strategy;
+      this.roundRobinIndex = 0;
+    }
+
+    /**
+     * Select next service based on load balance strategy
+     * @returns {Object|null} Selected service or null if no services available
+     */
+    selectService() {
+      if (this.services.length === 0) return null;
+
+      switch (this.strategy) {
+        case "round-robin":
+          return this.selectRoundRobin();
+        case "weighted":
+          return this.selectWeighted();
+        case "random":
+        default:
+          return this.selectRandom();
+      }
+    }
+
+    selectRandom() {
+      const randomIndex = Math.floor(Math.random() * this.services.length);
+      return this.services[randomIndex];
+    }
+
+    selectRoundRobin() {
+      const service = this.services[this.roundRobinIndex];
+      this.roundRobinIndex = (this.roundRobinIndex + 1) % this.services.length;
+      return service;
+    }
+
+    selectWeighted() {
+      const totalWeight = this.services.reduce((sum, service) => sum + (service.weight || 1), 0);
+      let random = Math.random() * totalWeight;
+
+      for (const service of this.services) {
+        random -= (service.weight || 1);
+        if (random <= 0) {
+          return service;
+        }
+      }
+
+      return this.services[0]; // Fallback
+    }
+
+    /**
+     * Get all services except the failed one for retry
+     * @param {string} failedServiceId
+     * @returns {Array} Available services for retry
+     */
+    getRetryServices(failedServiceId) {
+      return this.services.filter(s => s.id !== failedServiceId);
+    }
+  }
+
+
+
+  /**
+   * Creates the multi-endpoint DeepLX translation service
+   * @param {Object} config - Multi-service configuration
+   * @returns {Service} deeplxMultiService
+   */
+  const createDeepLXMultiService = (config) => {
+    const loadBalancer = new DeepLXLoadBalancer(config.services, config.loadBalanceStrategy);
 
     return new (class extends Service {
       constructor() {
+        // Use a placeholder URL, actual URLs will be selected by load balancer
         super(
           "deeplx",
-          endpoint,
+          "placeholder",
           "POST",
           function cbTransformRequest(sourceArray) {
             return sourceArray[0];
           },
           function cbParseResponse(response) {
-            if (apiVersion === "official") {
-              // Official endpoint returns different format
-              return [
-                {
-                  text: response.translations[0].text,
-                  detectedLanguage: response.translations[0].detected_source_language || "auto",
-                },
-              ];
-            } else {
-              // Free and Pro endpoints return same format
-              return [
-                {
-                  text: response.data,
-                  detectedLanguage: response.source_lang || "auto",
-                },
-              ];
-            }
+            // This will be overridden in the translate method with proper apiVersion
+            return [
+              {
+                text: response.data || (response.translations && response.translations[0].text),
+                detectedLanguage: response.source_lang || (response.translations && response.translations[0].detected_source_language) || "auto",
+              },
+            ];
           },
           function cbTransformResponse(result, dontSortResults) {
             return [result];
-          },
-          null,
-          function cbGetRequestBody(sourceLanguage, targetLanguage, requests) {
-            // Language mapping for DeepLX compatibility (similar to DeepL)
-            let mappedTargetLanguage = targetLanguage;
-            let mappedSourceLanguage = sourceLanguage;
-
-            // Map target language
-            if (targetLanguage === "pt") {
-              mappedTargetLanguage = "pt-BR";
-            } else if (targetLanguage === "no") {
-              mappedTargetLanguage = "nb";
-            } else if (targetLanguage.startsWith("zh-")) {
-              mappedTargetLanguage = "zh";
-            } else if (targetLanguage.startsWith("fr-")) {
-              mappedTargetLanguage = "fr";
-            } else if (targetLanguage.startsWith("en-")) {
-              mappedTargetLanguage = "en";
-            }
-
-            // Map source language (if not auto)
-            if (sourceLanguage !== "auto") {
-              if (sourceLanguage === "pt") {
-                mappedSourceLanguage = "pt-BR";
-              } else if (sourceLanguage === "no") {
-                mappedSourceLanguage = "nb";
-              } else if (sourceLanguage.startsWith("zh-")) {
-                mappedSourceLanguage = "zh";
-              } else if (sourceLanguage.startsWith("fr-")) {
-                mappedSourceLanguage = "fr";
-              } else if (sourceLanguage.startsWith("en-")) {
-                mappedSourceLanguage = "en";
-              }
-            }
-
-            let requestBody;
-
-            if (apiVersion === "official") {
-              // Official endpoint format (like DeepL API)
-              requestBody = {
-                text: [requests[0].originalText],
-                target_lang: mappedTargetLanguage,
-              };
-              // Only add source_lang if it's not auto
-              if (mappedSourceLanguage !== "auto") {
-                requestBody.source_lang = mappedSourceLanguage;
-              }
-            } else {
-              // Free and Pro endpoint format
-              requestBody = {
-                text: requests[0].originalText,
-                source_lang: mappedSourceLanguage === "auto" ? "auto" : mappedSourceLanguage,
-                target_lang: mappedTargetLanguage,
-              };
-            }
-
-
-
-            return JSON.stringify(requestBody);
-          },
-          function cbGetExtraHeaders() {
-            const headers = [
-              {
-                name: "Content-Type",
-                value: "application/json",
-              },
-            ];
-
-            // Add Authorization header if token is provided
-            if (token && token.trim() !== "") {
-              if (apiVersion === "official") {
-                // Official endpoint uses DeepL-Auth-Key format
-                headers.push({
-                  name: "Authorization",
-                  value: "DeepL-Auth-Key " + token.trim(),
-                });
-              } else {
-                // Free and Pro endpoints use Bearer token
-                headers.push({
-                  name: "Authorization",
-                  value: "Bearer " + token.trim(),
-                });
-              }
-            }
-
-            return headers;
           }
+        );
+      }
+
+      /**
+       * Override makeRequest to implement load balancing and failover
+       */
+      async makeRequest(sourceLanguage, targetLanguage, requests) {
+        const maxRetries = config.retryCount || 3;
+        let lastError = null;
+
+        // Try each service until one succeeds or we run out of retries
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+          const selectedService = loadBalancer.selectService();
+          if (!selectedService) {
+            throw new Error("No available DeepLX services");
+          }
+
+          try {
+            return await this.makeRequestToService(
+              selectedService,
+              sourceLanguage,
+              targetLanguage,
+              requests
+            );
+          } catch (error) {
+            console.warn(`DeepLX service ${selectedService.id} failed:`, error);
+            lastError = error;
+
+            // Remove failed service from current attempt
+            loadBalancer.services = loadBalancer.getRetryServices(selectedService.id);
+
+            // If no more services available, break
+            if (loadBalancer.services.length === 0) {
+              break;
+            }
+          }
+        }
+
+        throw lastError || new Error("All DeepLX services failed");
+      }
+
+      /**
+       * Make request to a specific service
+       */
+      async makeRequestToService(service, sourceLanguage, targetLanguage, requests) {
+        return await new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", service.url);
+
+          // Set headers
+          xhr.setRequestHeader("Content-Type", "application/json");
+          if (service.token && service.token.trim() !== "") {
+            if (service.apiVersion === "official") {
+              xhr.setRequestHeader("Authorization", "DeepL-Auth-Key " + service.token.trim());
+            } else {
+              xhr.setRequestHeader("Authorization", "Bearer " + service.token.trim());
+            }
+          }
+
+          xhr.responseType = "json";
+
+          xhr.onload = (event) => {
+            resolve(xhr.response);
+          };
+
+          xhr.onerror = xhr.onabort = xhr.ontimeout = (event) => {
+            reject(new Error(`Network error for service ${service.id}`));
+          };
+
+          // Prepare request body based on API version
+          const requestBody = this.prepareRequestBody(
+            service.apiVersion,
+            sourceLanguage,
+            targetLanguage,
+            requests
+          );
+
+          xhr.send(JSON.stringify(requestBody));
+        });
+      }
+
+      /**
+       * Prepare request body based on API version (same logic as single service)
+       */
+      prepareRequestBody(apiVersion, sourceLanguage, targetLanguage, requests) {
+        // Language mapping for DeepLX compatibility (same as single service)
+        let mappedTargetLanguage = targetLanguage;
+        let mappedSourceLanguage = sourceLanguage;
+
+        // Map target language
+        if (targetLanguage === "pt") {
+          mappedTargetLanguage = "pt-BR";
+        } else if (targetLanguage === "no") {
+          mappedTargetLanguage = "nb";
+        } else if (targetLanguage.startsWith("zh-")) {
+          mappedTargetLanguage = "zh";
+        } else if (targetLanguage.startsWith("fr-")) {
+          mappedTargetLanguage = "fr";
+        } else if (targetLanguage.startsWith("en-")) {
+          mappedTargetLanguage = "en";
+        }
+
+        // Map source language (if not auto)
+        if (sourceLanguage !== "auto") {
+          if (sourceLanguage === "pt") {
+            mappedSourceLanguage = "pt-BR";
+          } else if (sourceLanguage === "no") {
+            mappedSourceLanguage = "nb";
+          } else if (sourceLanguage.startsWith("zh-")) {
+            mappedSourceLanguage = "zh";
+          } else if (sourceLanguage.startsWith("fr-")) {
+            mappedSourceLanguage = "fr";
+          } else if (sourceLanguage.startsWith("en-")) {
+            mappedSourceLanguage = "en";
+          }
+        }
+
+        let requestBody;
+
+        if (apiVersion === "official") {
+          // Official endpoint format (like DeepL API)
+          requestBody = {
+            text: [requests[0].originalText],
+            target_lang: mappedTargetLanguage,
+          };
+          // Only add source_lang if it's not auto
+          if (mappedSourceLanguage !== "auto") {
+            requestBody["source_lang"] = mappedSourceLanguage;
+          }
+        } else {
+          // Free and Pro endpoint format
+          requestBody = {
+            text: requests[0].originalText,
+            source_lang: mappedSourceLanguage === "auto" ? "auto" : mappedSourceLanguage,
+            target_lang: mappedTargetLanguage,
+          };
+        }
+
+        return requestBody;
+      }
+
+
+
+      /**
+       * Parse response - auto-detect format
+       */
+      parseResponseByApiVersion(response, apiVersion) {
+        // Auto-detect response format
+        if (response.translations && response.translations[0]) {
+          // Official API format
+          return [
+            {
+              text: response.translations[0].text,
+              detectedLanguage: response.translations[0].detected_source_language || "auto",
+            },
+          ];
+        } else if (response.data) {
+          // Free/Pro API format
+          return [
+            {
+              text: response.data,
+              detectedLanguage: response.source_lang || "auto",
+            },
+          ];
+        } else {
+          // Fallback
+          return [
+            {
+              text: response.text || response.result || "",
+              detectedLanguage: "auto",
+            },
+          ];
+        }
+      }
+
+      /**
+       * Override translate to use the correct response parser
+       */
+      async translate(sourceLanguage, targetLanguage, sourceArray2d, dontSaveInPersistentCache = false, dontSortResults = false) {
+        const [requests, currentTranslationsInProgress] = await this.getRequests(
+          sourceLanguage,
+          targetLanguage,
+          sourceArray2d
+        );
+
+        const promises = [];
+
+        for (const request of requests) {
+          promises.push(
+            this.makeRequest(sourceLanguage, targetLanguage, request)
+              .then((response) => {
+                // Parse response - try both formats for compatibility
+                const results = this.parseResponseByApiVersion(response, "auto");
+                for (const idx in request) {
+                  const result = results[idx];
+                  const transInfo = request[idx];
+                  transInfo.detectedLanguage = result.detectedLanguage || "und";
+                  transInfo.translatedText = result.text;
+                  transInfo.status = "complete";
+
+                  if (dontSaveInPersistentCache === false && transInfo.translatedText) {
+                    translationCache.set(
+                      this.serviceName,
+                      sourceLanguage,
+                      targetLanguage,
+                      transInfo.originalText,
+                      transInfo.translatedText,
+                      transInfo.detectedLanguage
+                    );
+                  }
+                }
+              })
+              .catch((e) => {
+                console.error(e);
+                for (const transInfo of request) {
+                  transInfo.status = "error";
+                }
+              })
+          );
+        }
+
+        await Promise.all(
+          currentTranslationsInProgress.map((transInfo) => transInfo.waitTranlate)
+        );
+
+        return currentTranslationsInProgress.map((transInfo) =>
+          this.cbTransformResponse(transInfo.translatedText, dontSortResults)
         );
       }
     })();
@@ -1861,10 +2055,23 @@ const translationService = (function () {
         /** @type {Service} */ /** @type {?} */ (deeplService)
       );
     } else if (request.action === "createDeepLXService") {
-      serviceList.set(
-        "deeplx",
-        createDeepLXService(request.deeplx.url, request.deeplx.apiVersion, request.deeplx.token)
-      );
+      // Always use multi-service architecture, even for single service
+      const multiConfig = {
+        name: "deeplx",
+        services: [{
+          id: "service_" + Date.now(),
+          url: request.deeplx.url,
+          token: request.deeplx.token || "",
+          apiVersion: request.deeplx.apiVersion || "free",
+          weight: 1,
+          enabled: true
+        }],
+        loadBalanceStrategy: "random",
+        retryCount: 3
+      };
+      serviceList.set("deeplx", createDeepLXMultiService(multiConfig));
+    } else if (request.action === "createDeepLXMultiService") {
+      serviceList.set("deeplx", createDeepLXMultiService(request.deeplx));
     } else if (request.action === "removeDeepLXService") {
       serviceList.delete("deeplx");
     }
@@ -1887,11 +2094,41 @@ const translationService = (function () {
       serviceList.set("deepl", createDeeplFreeApiService(deepl_freeapi.apiKey));
     }
 
+    // Check for DeepLX service - always use multi-service architecture
     if (twpConfig.get("customServices").find((cs) => cs.name === "deeplx")) {
       const deeplx = twpConfig
         .get("customServices")
         .find((cs) => cs.name === "deeplx");
-      serviceList.set("deeplx", createDeepLXService(deeplx.url, deeplx.apiVersion || "free", deeplx.token));
+
+      // Check if it's already multi-service format
+      if (deeplx.services && Array.isArray(deeplx.services)) {
+        // Already in multi-service format
+        serviceList.set("deeplx", createDeepLXMultiService(deeplx));
+      } else {
+        // Legacy single service format - convert to multi-service
+        const multiConfig = {
+          name: "deeplx",
+          services: [{
+            id: "service_" + Date.now(),
+            url: deeplx.url,
+            token: deeplx.token || "",
+            apiVersion: deeplx.apiVersion || "free",
+            weight: 1,
+            enabled: true
+          }],
+          loadBalanceStrategy: "random",
+          retryCount: 3
+        };
+        serviceList.set("deeplx", createDeepLXMultiService(multiConfig));
+
+        // Update config to new format
+        const customServices = twpConfig.get("customServices");
+        const index = customServices.findIndex((cs) => cs.name === "deeplx");
+        if (index !== -1) {
+          customServices[index] = multiConfig;
+          twpConfig.set("customServices", customServices);
+        }
+      }
     }
 
     const proxyServers = twpConfig.get("proxyServers");

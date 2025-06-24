@@ -29,7 +29,7 @@
     <b><a href="#donation" class="w3-bar-item w3-button w3-padding"><span data-i18n="lblMakeDonation">Make a
           donation</span> &#10084;</a></b>
     <a href="#release_notes" class="w3-bar-item w3-button w3-padding" data-i18n="lblReleaseNotes">Release Notes</a>
-    <a href="https://github.com/FilipePS/Traduzir-paginas-web/issues" target="blank"
+    <a href="https://github.com/toddyoe/Traduzir-paginas-web/issues" target="blank"
       class="w3-bar-item w3-button w3-padding" data-i18n="lblReport">Report a problem</a>
     <a href="https://crowdin.com/project/translate-web-pages" target="blank" class="w3-bar-item w3-button w3-padding"
       data-i18n="lblTranslateInterface">Translate the interface</a>
@@ -600,19 +600,61 @@
         </div>
         <hr>
         <div>
-          <h3>Configure your DeepLX server for text and page translation.</h3>
-          <p>Enter the complete API endpoint URL. The system will automatically detect the API version.</p>
-          <label for="deeplxURL">DeepLX API Endpoint URL</label><br>
-          <input type="text" id="deeplxURL" placeholder="https://api.deeplx.org/translate"
-            style="width: 90%;" autocomplete="off" spellcheck="false"><br>
-          <small>Examples: https://api.deeplx.org/translate, https://api.deeplx.org/v1/translate, https://api.deeplx.org/v2/translate</small><br>
-          <br>
-          <label for="deeplxTOKEN">Your Access Token (Optional)</label><br>
-          <input type="text" id="deeplxTOKEN" placeholder="your_access_token" style="width: 90%;"
-            autocomplete="off" spellcheck="false"><br>
-          <br>
-          <button id="addDeepLX">Add DeepLX</button>
-          <button id="removeDeepLX">Remove DeepLX</button>
+          <h3>Configure your DeepLX servers for text and page translation.</h3>
+          <p>Manage multiple DeepLX endpoints with load balancing and automatic failover.</p>
+
+          <!-- Load Balance Strategy Selection (only shown when multiple services) -->
+          <div id="loadBalanceContainer" style="margin-bottom: 15px; display: none;">
+            <label for="deeplxLoadBalanceStrategy">Load Balance Strategy:</label><br>
+            <select id="deeplxLoadBalanceStrategy" style="width: 200px;">
+              <option value="random">Random</option>
+              <option value="round-robin">Round Robin</option>
+              <option value="weighted">Weighted</option>
+            </select>
+            <small style="display: block; color: #666; margin-top: 5px;">
+              Choose how requests are distributed among multiple endpoints
+            </small>
+          </div>
+
+          <!-- Endpoint List Container -->
+          <div id="deeplxServicesList" style="border: 1px solid #ccc; padding: 10px; margin-bottom: 15px; min-height: 100px;">
+            <h4>Configured Endpoints:</h4>
+            <div id="deeplxServicesContainer">
+              <p style="color: #666; font-style: italic;">No DeepLX endpoints configured</p>
+            </div>
+          </div>
+
+          <!-- Add New Endpoint Form -->
+          <div style="border: 1px solid #ddd; padding: 15px; background-color: #f9f9f9;">
+            <h4>Add New DeepLX Endpoint:</h4>
+            <label for="deeplxURL">API Endpoint URL</label><br>
+            <input type="text" id="deeplxURL" placeholder="https://api.deeplx.org/translate"
+              style="width: 90%;" autocomplete="off" spellcheck="false"><br>
+            <small>Examples: https://api.deeplx.org/translate (Free), https://api.deeplx.org/v1/translate (Pro), https://api.deeplx.org/v2/translate (Official)</small><br>
+            <small style="color: #666;">API version will be automatically detected from the URL path</small><br>
+            <br>
+
+            <label for="deeplxTOKEN">Access Token (Optional)</label><br>
+            <input type="text" id="deeplxTOKEN" placeholder="your_access_token" style="width: 90%;"
+              autocomplete="off" spellcheck="false"><br>
+            <br>
+
+            <div id="weightContainer" style="display: none;">
+              <label for="deeplxWeight">Weight (for weighted load balancing)</label><br>
+              <input type="number" id="deeplxWeight" value="1" min="1" max="10" style="width: 100px;"><br>
+              <small style="color: #666;">Higher weight = more requests (only used with weighted strategy)</small><br>
+              <br>
+            </div>
+
+            <button id="addDeepLXService" class="deeplx-btn deeplx-btn-green">+ Add Endpoint</button>
+            <button id="testDeepLXService" class="deeplx-btn deeplx-btn-green">Test Endpoint</button>
+            <button id="cancelEditDeepLX" class="deeplx-btn deeplx-btn-grey deeplx-btn-last" style="display: none;">Cancel Edit</button>
+          </div>
+
+          <div style="margin-top: 15px;">
+            <button id="removeAllDeepLX" class="deeplx-btn deeplx-btn-red deeplx-btn-last">Remove All Endpoints</button>
+          </div>
+
           <p id="deeplxApiResponse"></p>
         </div>
         <hr>

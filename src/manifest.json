@@ -1,13 +1,13 @@
 {
   "manifest_version": 2,
   "default_locale": "en",
-  "name": "TWP - Translate Web Pages",
+  "name": "TWP - Translate Web Pages with DeepLX",
   "description": "__MSG_extensionDescription__",
-  "version": "10.1.1.0",
-  "homepage_url": "https://github.com/FilipePS/Traduzir-paginas-web",
+  "version": "10.2.0.0",
+  "homepage_url": "https://github.com/toddyoe/Traduzir-paginas-web",
   "browser_specific_settings": {
     "gecko": {
-      "id": "{036a55b4-5e72-4d05-a06c-cba2dfcc134a}",
+      "id": "{8b9c2d4e-1f3a-4567-8901-234567890abc}",
       "strict_min_version": "64.0"
     }
   },

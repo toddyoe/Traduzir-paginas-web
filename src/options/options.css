@@ -3,6 +3,35 @@ body {
     Helvetica, Arial, "Lucida Grande", sans-serif;
 }
 
+/* DeepLX Button Styles */
+.deeplx-btn {
+  border-radius: 3px;
+  border: 1px solid;
+}
+
+.deeplx-btn:not(.deeplx-btn-last) {
+  margin-right: 8px;
+}
+
+.deeplx-btn-small:not(.deeplx-btn-last) {
+  margin-right: 5px;
+}
+
+.deeplx-btn-green {
+  background-color: #e8f5e8;
+  border-color: #c3e6c3;
+}
+
+.deeplx-btn-grey {
+  background-color: #f5f5f5;
+  border-color: #ddd;
+}
+
+.deeplx-btn-red {
+  background-color: #ffeaea;
+  border-color: #ffcdd2;
+}
+
 .list {
   overflow: auto;
   max-height: 250px;
