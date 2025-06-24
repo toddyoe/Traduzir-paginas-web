@@ -44,9 +44,17 @@ Promise.all([twpConfig.onReady(), getTabHostName()]).then(function (_) {
         break;
       case "targetLanguages":
         currentTargetLanguages = newValue;
+        // Update language buttons if the interface is active
+        if (shadowRoot && shadowRoot.getElementById("setTargetLanguage") && typeof updateTargetLanguageButtons === 'function') {
+          updateTargetLanguageButtons();
+        }
         break;
       case "targetLanguageTextTranslation":
         currentTargetLanguage = newValue;
+        // Update selected language button if the interface is active
+        if (shadowRoot && shadowRoot.getElementById("setTargetLanguage") && typeof updateTargetLanguageButtons === 'function') {
+          updateTargetLanguageButtons();
+        }
         break;
       case "sitesToTranslateWhenHovering":
         showTranslatedTextWhenHoveringThisSite =
@@ -418,9 +426,7 @@ Promise.all([twpConfig.onReady(), getTabHostName()]).then(function (_) {
                 <hr>
                 <div id="drag">
                     <ul id="setTargetLanguage">
-                        <li value="en" title="English">en</li>
-                        <li value="es" title="Spanish">es</li>
-                        <li value="de" title="German">de</li>
+                        <!-- Dynamic language buttons will be inserted here -->
                     </ul>
                     <ul>
                         <li title="Google" id="sGoogle">g</li>
@@ -665,21 +671,26 @@ Promise.all([twpConfig.onReady(), getTabHostName()]).then(function (_) {
 
     twpI18n.translateDocument(shadowRoot);
 
-    const targetLanguageButtons = shadowRoot.querySelectorAll(
-      "#setTargetLanguage li"
-    );
+    // Dynamically create language buttons based on user preferences
+    function updateTargetLanguageButtons() {
+      const setTargetLanguageContainer = shadowRoot.getElementById("setTargetLanguage");
+      setTargetLanguageContainer.innerHTML = "";
 
-    for (let i = 0; i < 3; i++) {
-      if (currentTargetLanguages[i] == currentTargetLanguage) {
-        targetLanguageButtons[i].classList.add("selected");
-      }
-      targetLanguageButtons[i].textContent = currentTargetLanguages[i];
-      targetLanguageButtons[i].setAttribute("value", currentTargetLanguages[i]);
-      targetLanguageButtons[i].setAttribute(
-        "title",
-        twpLang.codeToLanguage(currentTargetLanguages[i])
-      );
+      currentTargetLanguages.forEach((langCode, index) => {
+        const li = document.createElement("li");
+        li.setAttribute("value", langCode);
+        li.setAttribute("title", twpLang.codeToLanguage(langCode));
+        li.textContent = langCode;
+
+        if (langCode === currentTargetLanguage) {
+          li.classList.add("selected");
+        }
+
+        setTargetLanguageContainer.appendChild(li);
+      });
     }
+
+    updateTargetLanguageButtons();
 
     if (currentTextTranslatorService === "yandex") {
       sYandex.classList.add("selected");

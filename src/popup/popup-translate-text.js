@@ -319,21 +319,26 @@ twpConfig
       );
     };
 
-    const targetLanguageButtons = document.querySelectorAll(
-      "#setTargetLanguage li"
-    );
+    // Dynamically create language buttons based on user preferences
+    function updateTargetLanguageButtons() {
+      const setTargetLanguageContainer = document.getElementById("setTargetLanguage");
+      setTargetLanguageContainer.innerHTML = "";
 
-    for (let i = 0; i < 3; i++) {
-      if (currentTargetLanguages[i] == currentTargetLanguage) {
-        targetLanguageButtons[i].classList.add("selected");
-      }
-      targetLanguageButtons[i].textContent = currentTargetLanguages[i];
-      targetLanguageButtons[i].setAttribute("value", currentTargetLanguages[i]);
-      targetLanguageButtons[i].setAttribute(
-        "title",
-        twpLang.codeToLanguage(currentTargetLanguages[i])
-      );
+      currentTargetLanguages.forEach((langCode, index) => {
+        const li = document.createElement("li");
+        li.setAttribute("value", langCode);
+        li.setAttribute("title", twpLang.codeToLanguage(langCode));
+        li.textContent = langCode;
+
+        if (langCode === currentTargetLanguage) {
+          li.classList.add("selected");
+        }
+
+        setTargetLanguageContainer.appendChild(li);
+      });
     }
+
+    updateTargetLanguageButtons();
 
     switch (currentTextTranslatorService) {
       case "yandex":
@@ -384,6 +389,14 @@ twpConfig
 
     twpConfig.onChanged((name, newvalue) => {
       switch (name) {
+        case "targetLanguages":
+          currentTargetLanguages = newvalue;
+          updateTargetLanguageButtons();
+          break;
+        case "targetLanguageTextTranslation":
+          currentTargetLanguage = newvalue;
+          updateTargetLanguageButtons();
+          break;
         case "enabledServices": {
           const enabledServices = newvalue;
           if (enabledServices.includes("google")) {

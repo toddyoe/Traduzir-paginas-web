@@ -596,5 +596,17 @@
   },
   "btnChangePosition": {
     "message": "Change position"
+  },
+  "msgLanguageAlreadySelected": {
+    "message": "This language is already selected"
+  },
+  "msgMaxLanguagesReached": {
+    "message": "Maximum number of preferred languages reached (3)"
+  },
+  "msgFailedToAddLanguage": {
+    "message": "Failed to add language. Please try again."
+  },
+  "msgNoMoreLanguagesAvailable": {
+    "message": "No more languages available to add."
   }
 }

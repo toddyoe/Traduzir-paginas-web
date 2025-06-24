@@ -244,25 +244,39 @@ const twpConfig = (function () {
         });
       }
 
-      // Probably at this point it doesn't have 3 target languages.
+      // Ensure targetLanguages has at least 1 and at most 3 languages
+      // If empty or user hasn't customized, initialize with default 3 languages
 
-      // try to get the 3 target languages through the user defined languages in the browser configuration.
-      for (let lang of acceptedLanguages) {
-        if (config.targetLanguages.length >= 3) break;
-        lang = twpLang.fixTLanguageCode(lang);
-        if (lang && config.targetLanguages.indexOf(lang) === -1) {
-          config.targetLanguages.push(lang);
+      // Check if this is a fresh install or user hasn't customized targetLanguages
+      const isDefaultConfig = config.targetLanguages.length === 0 ||
+        (config.targetLanguages.length === 3 &&
+         config.targetLanguages.every(lang => defaultTargetLanguages.includes(lang)));
+
+      if (isDefaultConfig) {
+        // For fresh installs or default configs, try to get 3 target languages
+        // First try user's browser languages
+        for (let lang of acceptedLanguages) {
+          if (config.targetLanguages.length >= 3) break;
+          lang = twpLang.fixTLanguageCode(lang);
+          if (lang && config.targetLanguages.indexOf(lang) === -1) {
+            config.targetLanguages.push(lang);
+          }
+        }
+
+        // Then fill with default languages to reach 3
+        for (const lang in defaultTargetLanguages) {
+          if (config.targetLanguages.length >= 3) break;
+          if (
+            config.targetLanguages.indexOf(defaultTargetLanguages[lang]) === -1
+          ) {
+            config.targetLanguages.push(defaultTargetLanguages[lang]);
+          }
         }
       }
 
-      // then try to use de array defaultTargetLanguages ["en", "es", "de"]
-      for (const lang in defaultTargetLanguages) {
-        if (config.targetLanguages.length >= 3) break;
-        if (
-          config.targetLanguages.indexOf(defaultTargetLanguages[lang]) === -1
-        ) {
-          config.targetLanguages.push(defaultTargetLanguages[lang]);
-        }
+      // Ensure we have at least 1 language and at most 3
+      if (config.targetLanguages.length === 0) {
+        config.targetLanguages = [...defaultTargetLanguages];
       }
 
       // if targetLanguages is bigger than 3 remove the surplus
@@ -444,7 +458,8 @@ const twpConfig = (function () {
   };
 
   /**
-   * Add a new lang to the targetLanguages and remove the last target language. If the language is already in the targetLanguages then move it to the first position
+   * Add a new lang to the targetLanguages and remove the last target language if at max capacity.
+   * If the language is already in the targetLanguages then move it to the first position
    * @example
    * addTargetLanguage("de")
    * @param {string} lang - langCode
@@ -458,7 +473,10 @@ const twpConfig = (function () {
     const index = targetLanguages.indexOf(lang);
     if (index === -1) {
       targetLanguages.unshift(lang);
-      targetLanguages.pop();
+      // Only remove last language if we exceed 3 languages
+      if (targetLanguages.length > 3) {
+        targetLanguages.pop();
+      }
     } else {
       targetLanguages.splice(index, 1);
       targetLanguages.unshift(lang);
@@ -466,6 +484,85 @@ const twpConfig = (function () {
 
     twpConfig.set("targetLanguages", targetLanguages);
   }
+
+  /**
+   * Add a language to preferred languages (for settings UI)
+   * @param {string} lang - langCode
+   * @returns {boolean} success
+   */
+  twpConfig.addPreferredLanguage = function (lang) {
+    const targetLanguages = twpConfig.get("targetLanguages");
+    lang = twpLang.fixTLanguageCode(lang);
+    if (!lang || targetLanguages.length >= 3 || targetLanguages.indexOf(lang) !== -1) {
+      return false;
+    }
+
+    targetLanguages.push(lang);
+    twpConfig.set("targetLanguages", targetLanguages);
+    return true;
+  };
+
+  /**
+   * Remove a language from preferred languages (for settings UI)
+   * @param {number} index - index of language to remove
+   * @returns {boolean} success
+   */
+  twpConfig.removePreferredLanguage = function (index) {
+    const targetLanguages = twpConfig.get("targetLanguages");
+    if (targetLanguages.length <= 1 || index < 0 || index >= targetLanguages.length) {
+      return false;
+    }
+
+    targetLanguages.splice(index, 1);
+    twpConfig.set("targetLanguages", targetLanguages);
+
+    // Update current target languages if they were removed
+    const currentTarget = twpConfig.get("targetLanguage");
+    const currentTextTarget = twpConfig.get("targetLanguageTextTranslation");
+
+    if (targetLanguages.indexOf(currentTarget) === -1) {
+      twpConfig.set("targetLanguage", targetLanguages[0]);
+    }
+    if (targetLanguages.indexOf(currentTextTarget) === -1) {
+      twpConfig.set("targetLanguageTextTranslation", targetLanguages[0]);
+    }
+
+    return true;
+  };
+
+  /**
+   * Update a preferred language at specific index (for settings UI)
+   * @param {number} index - index to update
+   * @param {string} lang - new language code
+   * @returns {boolean} success
+   */
+  twpConfig.updatePreferredLanguage = function (index, lang) {
+    const targetLanguages = twpConfig.get("targetLanguages");
+    lang = twpLang.fixTLanguageCode(lang);
+    if (!lang || index < 0 || index >= targetLanguages.length) {
+      return false;
+    }
+
+    // Check if language already exists at different index
+    const existingIndex = targetLanguages.indexOf(lang);
+    if (existingIndex !== -1 && existingIndex !== index) {
+      return false;
+    }
+
+    const oldLang = targetLanguages[index];
+    targetLanguages[index] = lang;
+    twpConfig.set("targetLanguages", targetLanguages);
+
+    // Update current target languages if they were changed
+    if (twpConfig.get("targetLanguage") === oldLang) {
+      twpConfig.set("targetLanguage", lang);
+    }
+    if (twpConfig.get("targetLanguageTextTranslation") === oldLang) {
+      twpConfig.set("targetLanguageTextTranslation", lang);
+    }
+
+    return true;
+  };
 
   /**
    * set lang as target language for page translation only (not text translation)

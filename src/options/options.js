@@ -196,9 +196,8 @@ twpConfig
     fillLanguageList($("#selectTargetLanguage"));
     fillLanguageList($("#selectTargetLanguageForText"));
 
-    fillLanguageList($("#favoriteLanguage1"));
-    fillLanguageList($("#favoriteLanguage2"));
-    fillLanguageList($("#favoriteLanguage3"));
+    // Note: favoriteLanguage1, favoriteLanguage2, favoriteLanguage3 are now dynamically generated
+    // and filled in updatePreferredLanguagesList()
 
     fillLanguageList($("#addToNeverTranslateLangs"));
     fillLanguageList($("#addToAlwaysTranslateLangs"));
@@ -278,59 +277,130 @@ twpConfig
       location.reload();
     };
 
-    const targetLanguages = twpConfig.get("targetLanguages");
+    // Dynamic preferred languages management
+    /**
+     * Creates a DOM element for a preferred language item
+     * @param {string} langCode - The language code
+     * @param {number} index - The index of this language in the list
+     * @param {Array} targetLanguages - The current list of target languages (to avoid redundant API calls)
+     * @returns {HTMLElement} The created list item element
+     */
+    function createPreferredLanguageItem(langCode, index, targetLanguages) {
+      const li = document.createElement("li");
+      li.setAttribute("class", "w3-row");
+      li.setAttribute("data-index", index.toString());
 
-    $("#favoriteLanguage1").value = targetLanguages[0];
-    $("#favoriteLanguage2").value = targetLanguages[1];
-    $("#favoriteLanguage3").value = targetLanguages[2];
+      const labelDiv = document.createElement("div");
+      labelDiv.setAttribute("class", "w3-quarter");
+      const label = document.createElement("p");
+      label.textContent = twpI18n.getMessage("lblFavoriteLanguage", (index + 1).toString()) || `Favorite language ${index + 1}`;
+      labelDiv.appendChild(label);
 
-    $("#favoriteLanguage1").onchange = (e) => {
-      targetLanguages[0] = e.target.value;
-      twpConfig.set("targetLanguages", targetLanguages);
-      if (targetLanguages.indexOf(twpConfig.get("targetLanguage")) == -1) {
-        twpConfig.set("targetLanguage", targetLanguages[0]);
+      const selectDiv = document.createElement("div");
+      selectDiv.setAttribute("class", "w3-half");
+      const select = document.createElement("select");
+      select.setAttribute("class", "w3-select w3-border w3-round");
+      select.setAttribute("data-index", index.toString());
+
+      // Populate select with language options using existing fillLanguageList function
+      fillLanguageList(select);
+      select.value = langCode;
+
+      select.onchange = (e) => {
+        const success = twpConfig.updatePreferredLanguage(index, select.value);
+        if (!success) {
+          // Revert if update failed (duplicate language)
+          select.value = langCode;
+          alert(twpI18n.getMessage("msgLanguageAlreadySelected") || "This language is already selected");
+        } else {
+          location.reload();
+        }
+      };
+
+      selectDiv.appendChild(select);
+
+      const buttonDiv = document.createElement("div");
+      buttonDiv.setAttribute("class", "w3-quarter");
+
+      // Remove button (only show if more than 1 language)
+      if (targetLanguages.length > 1) {
+        const removeBtn = document.createElement("button");
+        removeBtn.setAttribute("class", "w3-button w3-red w3-round w3-margin-left");
+        removeBtn.textContent = "×";
+        removeBtn.title = twpI18n.getMessage("lblRemove") || "Remove";
+        removeBtn.onclick = () => {
+          const success = twpConfig.removePreferredLanguage(index);
+          if (success) {
+            location.reload();
+          }
+        };
+        buttonDiv.appendChild(removeBtn);
       }
-      if (
-        targetLanguages.indexOf(
-          twpConfig.get("targetLanguageTextTranslation")
-        ) == -1
-      ) {
-        twpConfig.set("targetLanguageTextTranslation", targetLanguages[0]);
+
+      li.appendChild(labelDiv);
+      li.appendChild(selectDiv);
+      li.appendChild(buttonDiv);
+
+      return li;
+    }
+
+    function updatePreferredLanguagesList() {
+      const targetLanguages = twpConfig.get("targetLanguages");
+      const container = $("#preferredLanguagesList");
+      container.innerHTML = "";
+
+      targetLanguages.forEach((langCode, index) => {
+        const li = createPreferredLanguageItem(langCode, index, targetLanguages);
+        container.appendChild(li);
+      });
+
+      // Show/hide add button
+      updateAddButtonVisibility(targetLanguages);
+    }
+
+    function updateAddButtonVisibility(targetLanguages) {
+      const addBtn = $("#addPreferredLanguage");
+      if (targetLanguages.length < 3) {
+        addBtn.style.display = "inline-block";
+      } else {
+        addBtn.style.display = "none";
       }
-      location.reload();
+    }
+
+    // Add language button handler
+    $("#addPreferredLanguage").onclick = () => {
+      const langs = twpLang.getLanguageList();
+      const targetLanguages = twpConfig.get("targetLanguages");
+
+      // Check if we can add more languages
+      if (targetLanguages.length >= 3) {
+        alert(twpI18n.getMessage("msgMaxLanguagesReached") || "Maximum number of preferred languages reached (3)");
+        return;
+      }
+
+      // Find first available language not in current list
+      let newLang = null;
+      for (const langCode in langs) {
+        if (targetLanguages.indexOf(langCode) === -1) {
+          newLang = langCode;
+          break;
+        }
+      }
+
+      if (newLang) {
+        const success = twpConfig.addPreferredLanguage(newLang);
+        if (success) {
+          location.reload();
+        } else {
+          alert(twpI18n.getMessage("msgFailedToAddLanguage") || "Failed to add language. Please try again.");
+        }
+      } else {
+        alert(twpI18n.getMessage("msgNoMoreLanguagesAvailable") || "No more languages available to add.");
+      }
     };
 
-    $("#favoriteLanguage2").onchange = (e) => {
-      targetLanguages[1] = e.target.value;
-      twpConfig.set("targetLanguages", targetLanguages);
-      if (targetLanguages.indexOf(twpConfig.get("targetLanguage")) == -1) {
-        twpConfig.set("targetLanguage", targetLanguages[0]);
-      }
-      if (
-        targetLanguages.indexOf(
-          twpConfig.get("targetLanguageTextTranslation")
-        ) == -1
-      ) {
-        twpConfig.set("targetLanguageTextTranslation", targetLanguages[0]);
-      }
-      location.reload();
-    };
-
-    $("#favoriteLanguage3").onchange = (e) => {
-      targetLanguages[2] = e.target.value;
-      twpConfig.set("targetLanguages", targetLanguages);
-      if (targetLanguages.indexOf(twpConfig.get("targetLanguage")) == -1) {
-        twpConfig.set("targetLanguage", targetLanguages[0]);
-      }
-      if (
-        targetLanguages.indexOf(
-          twpConfig.get("targetLanguageTextTranslation")
-        ) == -1
-      ) {
-        twpConfig.set("targetLanguageTextTranslation", targetLanguages[0]);
-      }
-      location.reload();
-    };
+    // Initialize preferred languages list
+    updatePreferredLanguagesList();
 
     // Never translate these languages
 

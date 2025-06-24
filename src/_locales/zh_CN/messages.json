@@ -596,5 +596,17 @@
   },
   "btnChangePosition": {
     "message": "改变位置"
+  },
+  "msgLanguageAlreadySelected": {
+    "message": "该语言已被选择"
+  },
+  "msgMaxLanguagesReached": {
+    "message": "已达到偏好语言的最大数量 (3)"
+  },
+  "msgFailedToAddLanguage": {
+    "message": "添加语言失败，请重试。"
+  },
+  "msgNoMoreLanguagesAvailable": {
+    "message": "没有更多可添加的语言。"
   }
 }

@@ -154,10 +154,19 @@ twpConfig
     });
 
     let targetLanguages = twpConfig.get("targetLanguages");
+    // Dynamically populate buttons based on available target languages
     for (let i = 1; i < 4; i++) {
       const button = twpButtons[i];
-      button.value = targetLanguages[i - 1];
-      button.textContent = twpLang.codeToLanguage(targetLanguages[i - 1]);
+      const langIndex = i - 1;
+
+      if (langIndex < targetLanguages.length && targetLanguages[langIndex]) {
+        button.value = targetLanguages[langIndex];
+        button.textContent = twpLang.codeToLanguage(targetLanguages[langIndex]);
+        button.style.display = "block";
+      } else {
+        // Hide button if no language available
+        button.style.display = "none";
+      }
     }
 
     chrome.tabs.query(

@@ -595,13 +595,17 @@ void (async function () {
 
     const buildRecentsLanguages = () => {
       eRecentsLangs.innerHTML = "";
-      for (const value of twpConfig.get("targetLanguages")) {
+      const targetLanguages = twpConfig.get("targetLanguages");
+      for (const value of targetLanguages) {
         const option = document.createElement("option");
         option.value = value;
         option.textContent = langs[value];
         eRecentsLangs.appendChild(option);
       }
-      menuSelectLanguage.value = twpConfig.get("targetLanguages")[0];
+      // Ensure we have at least one language before accessing index 0
+      if (targetLanguages.length > 0) {
+        menuSelectLanguage.value = targetLanguages[0];
+      }
     };
     buildRecentsLanguages();
 

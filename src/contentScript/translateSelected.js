@@ -171,6 +171,7 @@ Promise.all([twpConfig.onReady(), getTabHostName()]).then(function (_) {
 
   let onCSSLoad = null;
   let isCSSLoaded = false;
+  let shadowRoot = null; // Global shadowRoot reference
 
   function init() {
     destroy();
@@ -181,7 +182,7 @@ Promise.all([twpConfig.onReady(), getTabHostName()]).then(function (_) {
     divElement.style = "all: initial";
     divElement.classList.add("notranslate");
 
-    const shadowRoot = divElement.attachShadow({
+    shadowRoot = divElement.attachShadow({
       mode: "closed",
     });
 
@@ -253,9 +254,7 @@ Promise.all([twpConfig.onReady(), getTabHostName()]).then(function (_) {
 			</div>
 			<div id="drag">
 				<ul id="setTargetLanguage">
-					<li value="en" title="English">en</li>
-					<li value="es" title="Spanish">es</li>
-					<li value="de" title="German">de</li>
+					<!-- Dynamic language buttons will be inserted here -->
 				</ul>
 				<div id="moreOrLess"><i class="arrow up" id="more"></i><i class="arrow down" id="less"></i></div>
 				<ul>
@@ -672,21 +671,26 @@ Promise.all([twpConfig.onReady(), getTabHostName()]).then(function (_) {
     eButtonTransSelText.addEventListener("click", onClick);
     document.addEventListener("mousedown", onDown);
 
-    const targetLanguageButtons = shadowRoot.querySelectorAll(
-      "#setTargetLanguage li"
-    );
+    // Dynamically create language buttons based on user preferences
+    function updateTargetLanguageButtons() {
+      const setTargetLanguageContainer = shadowRoot.getElementById("setTargetLanguage");
+      setTargetLanguageContainer.innerHTML = "";
 
-    for (let i = 0; i < 3; i++) {
-      if (currentTargetLanguages[i] == currentTargetLanguage) {
-        targetLanguageButtons[i].classList.add("selected");
-      }
-      targetLanguageButtons[i].textContent = currentTargetLanguages[i];
-      targetLanguageButtons[i].setAttribute("value", currentTargetLanguages[i]);
-      targetLanguageButtons[i].setAttribute(
-        "title",
-        twpLang.codeToLanguage(currentTargetLanguages[i])
-      );
+      currentTargetLanguages.forEach((langCode, index) => {
+        const li = document.createElement("li");
+        li.setAttribute("value", langCode);
+        li.setAttribute("title", twpLang.codeToLanguage(langCode));
+        li.textContent = langCode;
+
+        if (langCode === currentTargetLanguage) {
+          li.classList.add("selected");
+        }
+
+        setTargetLanguageContainer.appendChild(li);
+      });
     }
+
+    updateTargetLanguageButtons();
 
     if (currentTextTranslatorService === "yandex") {
       sYandex.classList.add("selected");
@@ -828,7 +832,7 @@ Promise.all([twpConfig.onReady(), getTabHostName()]).then(function (_) {
       document.removeEventListener("touchstart", onTouchstart);
     }
     divElement.remove();
-    divElement = eButtonTransSelText = eDivResult = null;
+    divElement = eButtonTransSelText = eDivResult = shadowRoot = null;
   }
 
   function destroyIfButtonIsShowing(e) {
@@ -848,9 +852,17 @@ Promise.all([twpConfig.onReady(), getTabHostName()]).then(function (_) {
         break;
       case "targetLanguages":
         currentTargetLanguages = newValue;
+        // Update language buttons if the interface is active
+        if (shadowRoot && shadowRoot.getElementById("setTargetLanguage") && typeof updateTargetLanguageButtons === 'function') {
+          updateTargetLanguageButtons();
+        }
         break;
       case "targetLanguageTextTranslation":
         currentTargetLanguage = newValue;
+        // Update selected language button if the interface is active
+        if (shadowRoot && shadowRoot.getElementById("setTargetLanguage") && typeof updateTargetLanguageButtons === 'function') {
+          updateTargetLanguageButtons();
+        }
         break;
       case "alwaysTranslateSites":
         awaysTranslateThisSite = newValue.indexOf(tabHostName) !== -1;

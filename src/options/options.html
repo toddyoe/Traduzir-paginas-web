@@ -127,26 +127,18 @@
         <br />
         <br />
 
-        <p><b data-i18n="msgFavoriteLanguages">Favorite languages</b></p>
-        <ul class="w3-ul">
-          <li class="w3-row">
-            <p class="w3-half" data-i18n="lblFavoriteLanguage" data-i18n-ph-value="1">
-              Favorite language 1
-            </p>
-            <select id="favoriteLanguage1" class="w3-select w3-half w3-border w3-round"></select>
-          </li>
-          <li class="w3-row">
-            <p class="w3-half" data-i18n="lblFavoriteLanguage" data-i18n-ph-value="2">
-              Favorite language 2
-            </p>
-            <select id="favoriteLanguage2" class="w3-select w3-half w3-border w3-round"></select>
-          </li>
-          <li class="w3-row">
-            <p class="w3-half" data-i18n="lblFavoriteLanguage" data-i18n-ph-value="3">
-              Favorite language 3
-            </p>
-            <select id="favoriteLanguage3" class="w3-select w3-half w3-border w3-round"></select>
-          </li>
+        <div class="w3-display-container w3-padding w3-margin-top">
+          <div class="w3-display-left">
+            <p><b data-i18n="msgFavoriteLanguages">Favorite languages</b></p>
+          </div>
+          <div class="w3-display-right">
+            <button id="addPreferredLanguage" class="w3-button w3-blue w3-round w3-margin-right" data-i18n="lblAdd" style="display: none;">
+              Add
+            </button>
+          </div>
+        </div>
+        <ul id="preferredLanguagesList" class="w3-ul">
+          <!-- Dynamic language selectors will be inserted here -->
         </ul>
         <br />
         <div class="w3-display-container w3-padding w3-margin-top">
