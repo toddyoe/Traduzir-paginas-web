@@ -1543,45 +1543,70 @@ const translationService = (function () {
 
     /**
      * Select next service based on load balance strategy
+     * @param {Array<string>} excludeServiceIds - Service IDs to exclude from selection
      * @returns {Object|null} Selected service or null if no services available
      */
-    selectService() {
-      if (this.services.length === 0) return null;
+    selectService(excludeServiceIds = []) {
+      const availableServices = this.services.filter(s => !excludeServiceIds.includes(s.id));
+      if (availableServices.length === 0) return null;
 
       switch (this.strategy) {
         case "round-robin":
-          return this.selectRoundRobin();
+          return this.selectRoundRobin(availableServices);
         case "weighted":
-          return this.selectWeighted();
+          return this.selectWeighted(availableServices);
         case "random":
         default:
-          return this.selectRandom();
+          return this.selectRandom(availableServices);
       }
     }
 
-    selectRandom() {
-      const randomIndex = Math.floor(Math.random() * this.services.length);
-      return this.services[randomIndex];
+    selectRandom(services = this.services) {
+      const randomIndex = Math.floor(Math.random() * services.length);
+      return services[randomIndex];
     }
 
-    selectRoundRobin() {
-      const service = this.services[this.roundRobinIndex];
-      this.roundRobinIndex = (this.roundRobinIndex + 1) % this.services.length;
-      return service;
+    selectRoundRobin(services = this.services) {
+      if (services.length === 0) return null;
+
+      // If we're working with the full service list, use normal round-robin
+      if (services === this.services) {
+        const service = services[this.roundRobinIndex];
+        this.roundRobinIndex = (this.roundRobinIndex + 1) % services.length;
+        return service;
+      }
+
+      // For filtered services, find the next available service in round-robin order
+      let attempts = 0;
+      while (attempts < this.services.length) {
+        const candidateService = this.services[this.roundRobinIndex];
+        this.roundRobinIndex = (this.roundRobinIndex + 1) % this.services.length;
+
+        // Check if this service is in the available list
+        if (services.includes(candidateService)) {
+          return candidateService;
+        }
+        attempts++;
+      }
+
+      // Fallback: return first available service if round-robin fails
+      return services[0];
     }
 
-    selectWeighted() {
-      const totalWeight = this.services.reduce((sum, service) => sum + (service.weight || 1), 0);
+    selectWeighted(services = this.services) {
+      if (services.length === 0) return null;
+
+      const totalWeight = services.reduce((sum, service) => sum + (service.weight || 1), 0);
       let random = Math.random() * totalWeight;
 
-      for (const service of this.services) {
+      for (const service of services) {
         random -= (service.weight || 1);
         if (random <= 0) {
           return service;
         }
       }
 
-      return this.services[0]; // Fallback
+      return services[0]; // Fallback
     }
 
     /**
@@ -1595,6 +1620,104 @@ const translationService = (function () {
   }
 
 
+
+  /**
+   * Test a single DeepLX endpoint
+   * @param {Object} service - Service configuration to test
+   * @returns {Promise<Object>} Test result with success status and details
+   */
+  async function testDeepLXEndpoint(service) {
+    try {
+      const testText = "Hello";
+      const targetLanguage = "zh";
+
+      const result = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", service.url);
+
+        // Set headers
+        xhr.setRequestHeader("Content-Type", "application/json");
+        if (service.token && service.token.trim() !== "") {
+          if (service.apiVersion === "official") {
+            xhr.setRequestHeader("Authorization", "DeepL-Auth-Key " + service.token.trim());
+          } else {
+            xhr.setRequestHeader("Authorization", "Bearer " + service.token.trim());
+          }
+        }
+
+        xhr.responseType = "json";
+        xhr.timeout = 10000; // 10 second timeout
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve({
+              success: true,
+              status: xhr.status,
+              response: xhr.response,
+              message: "Connection successful"
+            });
+          } else {
+            resolve({
+              success: false,
+              status: xhr.status,
+              error: `HTTP ${xhr.status}: ${xhr.statusText || 'Request failed'}`,
+              message: "HTTP error"
+            });
+          }
+        };
+
+        xhr.onerror = () => {
+          resolve({
+            success: false,
+            error: "Network error - Unable to connect to endpoint",
+            message: "Connection failed"
+          });
+        };
+
+        xhr.ontimeout = () => {
+          resolve({
+            success: false,
+            error: "Request timeout - Endpoint took too long to respond",
+            message: "Timeout"
+          });
+        };
+
+        xhr.onabort = () => {
+          resolve({
+            success: false,
+            error: "Request aborted",
+            message: "Aborted"
+          });
+        };
+
+        // Prepare request body based on API version
+        let requestBody;
+        if (service.apiVersion === "official") {
+          requestBody = {
+            text: [testText],
+            target_lang: targetLanguage.toUpperCase(),
+            source_lang: "EN"
+          };
+        } else {
+          requestBody = {
+            text: testText,
+            source_lang: "EN",
+            target_lang: targetLanguage
+          };
+        }
+
+        xhr.send(JSON.stringify(requestBody));
+      });
+
+      return result;
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message || "Unknown error occurred",
+        message: "Test failed"
+      };
+    }
+  }
 
   /**
    * Creates the multi-endpoint DeepLX translation service
@@ -1635,10 +1758,11 @@ const translationService = (function () {
       async makeRequest(sourceLanguage, targetLanguage, requests) {
         const maxRetries = config.retryCount || 3;
         let lastError = null;
+        const failedServiceIds = []; // Track failed services for this request only
 
         // Try each service until one succeeds or we run out of retries
         for (let attempt = 0; attempt < maxRetries; attempt++) {
-          const selectedService = loadBalancer.selectService();
+          const selectedService = loadBalancer.selectService(failedServiceIds);
           if (!selectedService) {
             throw new Error("No available DeepLX services");
           }
@@ -1654,11 +1778,11 @@ const translationService = (function () {
             console.warn(`DeepLX service ${selectedService.id} failed:`, error);
             lastError = error;
 
-            // Remove failed service from current attempt
-            loadBalancer.services = loadBalancer.getRetryServices(selectedService.id);
+            // Add failed service to temporary exclusion list for this request
+            failedServiceIds.push(selectedService.id);
 
-            // If no more services available, break
-            if (loadBalancer.services.length === 0) {
+            // If all services have been tried, break
+            if (failedServiceIds.length >= loadBalancer.services.length) {
               break;
             }
           }
@@ -1688,7 +1812,12 @@ const translationService = (function () {
           xhr.responseType = "json";
 
           xhr.onload = (event) => {
-            resolve(xhr.response);
+            // Check HTTP status code
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve(xhr.response);
+            } else {
+              reject(new Error(`HTTP ${xhr.status}: ${xhr.statusText || 'Request failed'}`));
+            }
           };
 
           xhr.onerror = xhr.onabort = xhr.ontimeout = (event) => {
@@ -2074,6 +2203,18 @@ const translationService = (function () {
       serviceList.set("deeplx", createDeepLXMultiService(request.deeplx));
     } else if (request.action === "removeDeepLXService") {
       serviceList.delete("deeplx");
+    } else if (request.action === "testDeepLXEndpoint") {
+      testDeepLXEndpoint(request.service)
+        .then((result) => sendResponse(result))
+        .catch((error) => {
+          sendResponse({
+            success: false,
+            error: error.message || "Test failed",
+            message: "Test error"
+          });
+        });
+
+      return true;
     }
   });
 

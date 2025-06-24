@@ -32,6 +32,11 @@ body {
   border-color: #ffcdd2;
 }
 
+.deeplx-btn-blue {
+  background-color: #e3f2fd;
+  border-color: #90caf9;
+}
+
 .list {
   overflow: auto;
   max-height: 250px;

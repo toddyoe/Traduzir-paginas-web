@@ -1681,30 +1681,56 @@ twpConfig
 
       let html = '';
       deeplxConfig.services.forEach((service, index) => {
-        const statusColor = service.enabled ? '#28a745' : '#6c757d';
+        let statusColor = service.enabled ? '#28a745' : '#6c757d';
+        let statusIcon = service.enabled ? '●' : '○';
+        let statusBadge = '';
+
+        // Check for permanent errors
+        if (service.permanentError) {
+          statusColor = '#6f42c1'; // Purple for permanent errors
+          statusIcon = '🚫';
+          const errorCode = service.permanentErrorReason || 'ERROR';
+          statusBadge = `<span style="background: #6f42c1; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.75em; margin-left: 8px;">${errorCode}</span>`;
+        } else if (service.lastTestStatus === 'failed') {
+          statusColor = '#dc3545'; // Red for failed tests
+          statusIcon = '❌';
+          // Extract error code or show "FAILED"
+          const errorMatch = service.lastTestError ? service.lastTestError.match(/HTTP (\d+)/) : null;
+          const errorCode = errorMatch ? errorMatch[1] : 'FAILED';
+          statusBadge = `<span style="background: #dc3545; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.75em; margin-left: 8px;">${errorCode}</span>`;
+        } else if (service.lastTestStatus === 'success') {
+          statusIcon = service.enabled ? '✅' : '○';
+        }
+
         const versionText = service.apiVersion === "free" ? "Free" :
                            service.apiVersion === "pro" ? "Pro" : "Official";
 
         // Show weight only for multiple services
         const weightDisplay = deeplxConfig.services.length > 1 ? ` | Weight: ${service.weight}` : '';
 
-        // Truncate long URLs for display
-        const maxUrlLength = 50;
+        // Truncate long URLs for display - make it shorter to save space
+        const maxUrlLength = 35;
         const displayUrl = service.url.length > maxUrlLength ?
           service.url.substring(0, maxUrlLength) + '...' : service.url;
 
         html += `
           <div style="border: 1px solid #ddd; padding: 10px; margin: 5px 0; background-color: white;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-              <div style="flex: 1;">
-                <strong style="color: ${statusColor};">${service.enabled ? '●' : '○'} Endpoint ${index + 1}</strong>
-                <br>
-                <span style="font-size: 0.9em; color: #666;">
+              <div style="flex: 1; min-width: 0;">
+                <div style="display: flex; align-items: center; margin-bottom: 4px;">
+                  <strong style="color: ${statusColor};">${statusIcon} Endpoint ${index + 1}</strong>
+                  ${statusBadge}
+                  <span id="test-status-${service.id}" style="margin-left: 10px; font-size: 0.8em; display: none;"></span>
+                </div>
+                <div style="font-size: 0.9em; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                   <span title="${service.url}" style="cursor: help;">${displayUrl}</span> | ${versionText}${weightDisplay}
                   ${service.token ? ' | Token: ●●●●' : ' | No Token'}
-                </span>
+                </div>
               </div>
               <div>
+                <button data-action="test" data-service-id="${service.id}" class="deeplx-btn deeplx-btn-small deeplx-btn-blue">
+                  Test
+                </button>
                 <button data-action="edit" data-service-id="${service.id}" class="deeplx-btn deeplx-btn-small deeplx-btn-green">
                   Edit
                 </button>
@@ -1732,9 +1758,20 @@ twpConfig
       }
     };
 
+    // Store original values for comparison and change listeners
+    let originalEditValues = {};
+    let editFormChangeListeners = null;
+
     const editDeepLXService = (serviceId) => {
       const service = deeplxConfig.services.find(s => s.id === serviceId);
       if (!service) return;
+
+      // Store original values
+      originalEditValues = {
+        url: service.url,
+        token: service.token || "",
+        weight: service.weight || 1
+      };
 
       // Fill form with current service data
       $("#deeplxURL").value = service.url;
@@ -1750,7 +1787,12 @@ twpConfig
       const cancelButton = $("#cancelEditDeepLX");
       addButton.textContent = "Update Endpoint";
       addButton.setAttribute('data-editing-id', serviceId);
+      addButton.disabled = true; // Initially disabled since no changes
+      addButton.style.opacity = "0.5";
       cancelButton.style.display = "inline-block";
+
+      // Add change listeners to form fields
+      setupEditFormChangeListeners();
 
       // Scroll to form
       document.querySelector('#deeplxURL').scrollIntoView({ behavior: 'smooth' });
@@ -1764,23 +1806,91 @@ twpConfig
       }
     };
 
+
+
+    // Setup change listeners for edit form
+    const setupEditFormChangeListeners = () => {
+      // Remove existing listeners if they exist
+      if (editFormChangeListeners) {
+        $("#deeplxURL").removeEventListener('input', editFormChangeListeners);
+        $("#deeplxTOKEN").removeEventListener('input', editFormChangeListeners);
+        $("#deeplxWeight").removeEventListener('input', editFormChangeListeners);
+      }
+
+      // Create the change handler function
+      editFormChangeListeners = () => {
+        const currentValues = {
+          url: $("#deeplxURL").value.trim(),
+          token: $("#deeplxTOKEN").value.trim(),
+          weight: parseInt($("#deeplxWeight").value) || 1
+        };
+
+        const hasChanges =
+          currentValues.url !== originalEditValues.url ||
+          currentValues.token !== originalEditValues.token ||
+          currentValues.weight !== originalEditValues.weight;
+
+        const addButton = $("#addDeepLXService");
+        if (hasChanges) {
+          addButton.disabled = false;
+          addButton.style.opacity = "1";
+        } else {
+          addButton.disabled = true;
+          addButton.style.opacity = "0.5";
+        }
+      };
+
+      // Add new listeners
+      $("#deeplxURL").addEventListener('input', editFormChangeListeners);
+      $("#deeplxTOKEN").addEventListener('input', editFormChangeListeners);
+      $("#deeplxWeight").addEventListener('input', editFormChangeListeners);
+    };
+
+    // Helper function to clear API response message after delay
+    const clearApiResponseMessage = (delay = 3000) => {
+      setTimeout(() => {
+        $("#deeplxApiResponse").textContent = "";
+      }, delay);
+    };
+
     // Reset edit form to add mode
     const resetEditForm = () => {
       $("#deeplxURL").value = "";
       $("#deeplxTOKEN").value = "";
       $("#deeplxWeight").value = "1";
-      $("#addDeepLXService").textContent = "+ Add Endpoint";
-      $("#addDeepLXService").removeAttribute('data-editing-id');
+      const addButton = $("#addDeepLXService");
+      addButton.textContent = "+ Add Endpoint";
+      addButton.removeAttribute('data-editing-id');
+      addButton.disabled = false;
+      addButton.style.opacity = "1";
       $("#cancelEditDeepLX").style.display = "none";
       $("#deeplxApiResponse").textContent = "";
+
+      // Clear original values
+      originalEditValues = {};
+
+      // Remove change listeners
+      if (editFormChangeListeners) {
+        $("#deeplxURL").removeEventListener('input', editFormChangeListeners);
+        $("#deeplxTOKEN").removeEventListener('input', editFormChangeListeners);
+        $("#deeplxWeight").removeEventListener('input', editFormChangeListeners);
+        editFormChangeListeners = null;
+      }
     };
 
     // Add new endpoint or update existing
-    $("#addDeepLXService").onclick = () => {
+    $("#addDeepLXService").onclick = async () => {
+      const addButton = $("#addDeepLXService");
+
+      // Check if button is disabled (no changes in edit mode)
+      if (addButton.disabled) {
+        return;
+      }
+
       const urlValue = $("#deeplxURL").value.trim();
       const tokenValue = $("#deeplxTOKEN").value.trim();
       const weight = parseInt($("#deeplxWeight").value) || 1;
-      const editingId = $("#addDeepLXService").getAttribute('data-editing-id');
+      const editingId = addButton.getAttribute('data-editing-id');
 
       if (!urlValue) {
         alert("Please provide a DeepLX API endpoint URL");
@@ -1804,28 +1914,105 @@ twpConfig
           throw new Error("Invalid hostname");
         }
 
+        // Auto-detect API version from URL
+        const detectedApiVersion = detectApiVersion(validUrl);
+
+        // Test endpoint before saving (only for new endpoints)
+        if (!editingId) {
+          $("#deeplxApiResponse").textContent = "Testing endpoint before adding...";
+          $("#deeplxApiResponse").style.color = "blue";
+
+          const testService = {
+            url: validUrl,
+            token: tokenValue,
+            apiVersion: detectedApiVersion
+          };
+
+          try {
+            const testResult = await new Promise((resolve) => {
+              chrome.runtime.sendMessage({
+                action: "testDeepLXEndpoint",
+                service: testService
+              }, resolve);
+            });
+
+            if (!testResult.success) {
+              $("#deeplxApiResponse").textContent = `✗ Endpoint test failed: ${testResult.error || testResult.message}. Please check your URL and token.`;
+              $("#deeplxApiResponse").style.color = "red";
+              return; // Don't save if test fails
+            }
+
+            $("#deeplxApiResponse").textContent = "✓ Endpoint test successful! Adding endpoint...";
+            $("#deeplxApiResponse").style.color = "green";
+          } catch (error) {
+            $("#deeplxApiResponse").textContent = `✗ Test failed: ${error.message || "Unknown error"}. Please check your URL and token.`;
+            $("#deeplxApiResponse").style.color = "red";
+            return; // Don't save if test fails
+          }
+        }
+
         if (editingId) {
           // Update existing service
           const serviceIndex = deeplxConfig.services.findIndex(s => s.id === editingId);
           if (serviceIndex !== -1) {
-            // Check if URL conflicts with other services (excluding current one)
-            const existingService = deeplxConfig.services.find(s => s.url === validUrl && s.id !== editingId);
+            // Check if URL+Token combination conflicts with other services (excluding current one)
+            const existingService = deeplxConfig.services.find(s =>
+              s.url === validUrl &&
+              s.token === tokenValue &&
+              s.id !== editingId
+            );
             if (existingService) {
-              alert("This URL is already configured for another endpoint");
+              alert("This URL and token combination is already configured for another endpoint");
               return;
             }
 
-            // Auto-detect API version from URL
-            const detectedApiVersion = detectApiVersion(validUrl);
+            // Test endpoint before updating
+            $("#deeplxApiResponse").textContent = "Testing endpoint before updating...";
+            $("#deeplxApiResponse").style.color = "blue";
 
-            // Update service
+            const testService = {
+              url: validUrl,
+              token: tokenValue,
+              apiVersion: detectedApiVersion
+            };
+
+            try {
+              const testResult = await new Promise((resolve) => {
+                chrome.runtime.sendMessage({
+                  action: "testDeepLXEndpoint",
+                  service: testService
+                }, resolve);
+              });
+
+              if (!testResult.success) {
+                $("#deeplxApiResponse").textContent = `✗ Endpoint test failed: ${testResult.error || testResult.message}. Please check your URL and token.`;
+                $("#deeplxApiResponse").style.color = "red";
+                return; // Don't save if test fails
+              }
+
+              $("#deeplxApiResponse").textContent = "✓ Endpoint test successful! Updating endpoint...";
+              $("#deeplxApiResponse").style.color = "green";
+            } catch (error) {
+              $("#deeplxApiResponse").textContent = `✗ Test failed: ${error.message || "Unknown error"}. Please check your URL and token.`;
+              $("#deeplxApiResponse").style.color = "red";
+              return; // Don't save if test fails
+            }
+
+            // Update service and clear all error states since test was successful
             deeplxConfig.services[serviceIndex] = {
               ...deeplxConfig.services[serviceIndex],
               url: validUrl,
               token: tokenValue,
               apiVersion: detectedApiVersion,
-              weight: weight
+              weight: weight,
+              lastTestStatus: 'success', // Mark as tested successfully
+              lastTestTime: Date.now()
             };
+
+            // Clear all error states on successful test
+            delete deeplxConfig.services[serviceIndex].lastTestError;
+            delete deeplxConfig.services[serviceIndex].permanentError;
+            delete deeplxConfig.services[serviceIndex].permanentErrorReason;
 
             saveDeepLXConfig();
 
@@ -1835,18 +2022,18 @@ twpConfig
             // Show success message
             $("#deeplxApiResponse").textContent = `Endpoint updated successfully! (${detectedApiVersion.charAt(0).toUpperCase() + detectedApiVersion.slice(1)} API)`;
             $("#deeplxApiResponse").style.color = "green";
+            clearApiResponseMessage(3000);
           }
         } else {
           // Add new service
-          // Check if URL already exists
-          const existingService = deeplxConfig.services.find(s => s.url === validUrl);
+          // Check if URL+Token combination already exists
+          const existingService = deeplxConfig.services.find(s =>
+            s.url === validUrl && s.token === tokenValue
+          );
           if (existingService) {
-            alert("This URL is already configured");
+            alert("This URL and token combination is already configured");
             return;
           }
-
-          // Auto-detect API version from URL
-          const detectedApiVersion = detectApiVersion(validUrl);
 
           // Create new service
           const newService = {
@@ -1855,7 +2042,9 @@ twpConfig
             token: tokenValue,
             apiVersion: detectedApiVersion,
             weight: weight,
-            enabled: true
+            enabled: true,
+            lastTestStatus: 'success', // Mark as tested successfully
+            lastTestTime: Date.now()
           };
 
           deeplxConfig.services.push(newService);
@@ -1869,6 +2058,7 @@ twpConfig
           // Show success message
           $("#deeplxApiResponse").textContent = `Endpoint added successfully! (${detectedApiVersion.charAt(0).toUpperCase() + detectedApiVersion.slice(1)} API)`;
           $("#deeplxApiResponse").style.color = "green";
+          clearApiResponseMessage(3000);
         }
 
         // Trigger service selector update
@@ -1913,57 +2103,31 @@ twpConfig
         if (testResult.success) {
           $("#deeplxApiResponse").textContent = `✓ Endpoint test successful! Response: ${testResult.message}`;
           $("#deeplxApiResponse").style.color = "green";
+          clearApiResponseMessage(3000);
         } else {
           $("#deeplxApiResponse").textContent = `✗ Endpoint test failed: ${testResult.message}`;
           $("#deeplxApiResponse").style.color = "red";
+          clearApiResponseMessage(5000);
         }
 
       } catch (e) {
         $("#deeplxApiResponse").textContent = `✗ Test failed: ${e.message}`;
         $("#deeplxApiResponse").style.color = "red";
+        clearApiResponseMessage(5000);
       }
     };
 
-    // Test DeepLX endpoint
+    // Test DeepLX endpoint using background script
     const testDeepLXEndpoint = async (url, token, apiVersion) => {
       return new Promise((resolve) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open("POST", url);
-        xhr.setRequestHeader("Content-Type", "application/json");
-
-        if (token && token.trim() !== "") {
-          if (apiVersion === "official") {
-            xhr.setRequestHeader("Authorization", "DeepL-Auth-Key " + token.trim());
-          } else {
-            xhr.setRequestHeader("Authorization", "Bearer " + token.trim());
+        chrome.runtime.sendMessage({
+          action: "testDeepLXEndpoint",
+          service: {
+            url: url,
+            token: token,
+            apiVersion: apiVersion
           }
-        }
-
-        xhr.timeout = 10000; // 10 second timeout
-        xhr.responseType = "json";
-
-        xhr.onload = () => {
-          if (xhr.status === 200 && xhr.response) {
-            resolve({ success: true, message: "Connection successful" });
-          } else {
-            resolve({ success: false, message: `HTTP ${xhr.status}` });
-          }
-        };
-
-        xhr.onerror = () => {
-          resolve({ success: false, message: "Network error" });
-        };
-
-        xhr.ontimeout = () => {
-          resolve({ success: false, message: "Request timeout" });
-        };
-
-        // Send test request
-        const testBody = apiVersion === "official" ?
-          { text: ["Hello"], target_lang: "ES" } :
-          { text: "Hello", source_lang: "EN", target_lang: "ES" };
-
-        xhr.send(JSON.stringify(testBody));
+        }, resolve);
       });
     };
 
@@ -1998,6 +2162,156 @@ twpConfig
       $("#btnEnableDeepLX").disabled = !hasServices;
     };
 
+    // Test specific endpoint
+    const testSpecificEndpoint = async (serviceId) => {
+      const service = deeplxConfig.services.find(s => s.id === serviceId);
+      if (!service) return;
+
+      // Find the button and status indicator
+      const testButton = document.querySelector(`button[data-action="test"][data-service-id="${serviceId}"]`);
+      const statusIndicator = document.querySelector(`#test-status-${serviceId}`);
+
+      if (testButton) {
+        testButton.textContent = "Testing...";
+        testButton.disabled = true;
+      }
+
+      if (statusIndicator) {
+        statusIndicator.style.display = "inline";
+        statusIndicator.textContent = "🔄 Testing...";
+        statusIndicator.style.color = "#007bff";
+      }
+
+      try {
+        const result = await new Promise((resolve) => {
+          chrome.runtime.sendMessage({
+            action: "testDeepLXEndpoint",
+            service: service
+          }, resolve);
+        });
+
+        // Update service test status in config
+        const serviceIndex = deeplxConfig.services.findIndex(s => s.id === serviceId);
+        if (serviceIndex !== -1) {
+          if (result.success) {
+            // Clear all error states on successful test
+            deeplxConfig.services[serviceIndex].lastTestStatus = 'success';
+            deeplxConfig.services[serviceIndex].lastTestTime = Date.now();
+            delete deeplxConfig.services[serviceIndex].lastTestError;
+            delete deeplxConfig.services[serviceIndex].permanentError;
+            delete deeplxConfig.services[serviceIndex].permanentErrorReason;
+          } else {
+            // Set error states on failed test
+            deeplxConfig.services[serviceIndex].lastTestStatus = 'failed';
+            deeplxConfig.services[serviceIndex].lastTestTime = Date.now();
+            deeplxConfig.services[serviceIndex].lastTestError = result.error || result.message;
+
+            // Check if it's a permanent error (401, 403, etc.)
+            if (result.status) {
+              const permanentErrors = [401, 403, 404, 429]; // Unauthorized, Forbidden, Not Found, Rate Limited
+              if (permanentErrors.includes(result.status)) {
+                deeplxConfig.services[serviceIndex].permanentError = true;
+                deeplxConfig.services[serviceIndex].permanentErrorReason = `HTTP ${result.status}`;
+              }
+            }
+          }
+
+          // Save the updated config (but don't trigger service update)
+          const customServices = twpConfig.get("customServices");
+          const index = customServices.findIndex(cs => cs.name === "deeplx");
+          if (index !== -1) {
+            customServices[index] = deeplxConfig;
+            twpConfig.set("customServices", customServices);
+          }
+        }
+
+        if (result.success) {
+          if (testButton) {
+            testButton.textContent = "✓ Success";
+            testButton.style.backgroundColor = "#28a745";
+            testButton.style.color = "white";
+          }
+          if (statusIndicator) {
+            statusIndicator.textContent = "✅ Connected";
+            statusIndicator.style.color = "#28a745";
+          }
+
+          setTimeout(() => {
+            if (testButton) {
+              testButton.textContent = "Test";
+              testButton.style.backgroundColor = "";
+              testButton.style.color = "";
+              testButton.disabled = false;
+            }
+            if (statusIndicator) {
+              statusIndicator.style.display = "none";
+            }
+            // Refresh the services list to show updated status
+            updateDeepLXServicesList();
+          }, 3000);
+        } else {
+          // Check if it's a permanent error for display
+          const isPermanentError = result.status && [401, 403, 404, 429].includes(result.status);
+          const errorIcon = isPermanentError ? "🚫" : "❌";
+          const errorPrefix = isPermanentError ? "PERMANENT" : "Failed";
+
+          if (testButton) {
+            testButton.textContent = `✗ ${errorPrefix}`;
+            testButton.style.backgroundColor = isPermanentError ? "#6f42c1" : "#dc3545";
+            testButton.style.color = "white";
+            testButton.title = result.error || "Test failed";
+          }
+          if (statusIndicator) {
+            statusIndicator.textContent = `${errorIcon} ${result.message || 'Failed'}`;
+            statusIndicator.style.color = isPermanentError ? "#6f42c1" : "#dc3545";
+            statusIndicator.title = result.error || "Test failed";
+          }
+
+          setTimeout(() => {
+            if (testButton) {
+              testButton.textContent = "Test";
+              testButton.style.backgroundColor = "";
+              testButton.style.color = "";
+              testButton.title = "";
+              testButton.disabled = false;
+            }
+            if (statusIndicator) {
+              statusIndicator.style.display = "none";
+              statusIndicator.title = "";
+            }
+            // Refresh the services list to show updated status
+            updateDeepLXServicesList();
+          }, 5000);
+        }
+      } catch (error) {
+        if (testButton) {
+          testButton.textContent = "✗ Error";
+          testButton.style.backgroundColor = "#dc3545";
+          testButton.style.color = "white";
+          testButton.title = error.message || "Test error";
+        }
+        if (statusIndicator) {
+          statusIndicator.textContent = "❌ Error";
+          statusIndicator.style.color = "#dc3545";
+          statusIndicator.title = error.message || "Test error";
+        }
+
+        setTimeout(() => {
+          if (testButton) {
+            testButton.textContent = "Test";
+            testButton.style.backgroundColor = "";
+            testButton.style.color = "";
+            testButton.title = "";
+            testButton.disabled = false;
+          }
+          if (statusIndicator) {
+            statusIndicator.style.display = "none";
+            statusIndicator.title = "";
+          }
+        }, 5000);
+      }
+    };
+
     // Add one-time event delegation for service buttons
     const container = $("#deeplxServicesContainer");
     container.addEventListener('click', (e) => {
@@ -2007,7 +2321,9 @@ twpConfig
       const action = button.getAttribute('data-action');
       const serviceId = button.getAttribute('data-service-id');
 
-      if (action === 'edit') {
+      if (action === 'test') {
+        testSpecificEndpoint(serviceId);
+      } else if (action === 'edit') {
         editDeepLXService(serviceId);
       } else if (action === 'toggle') {
         toggleDeepLXService(serviceId);
