@@ -446,6 +446,12 @@
       }
     }
   },
+  "btnAddLanguage": {
+    "message": "Add"
+  },
+  "btnRemoveLanguage": {
+    "message": "Remove language"
+  },
   "lblSelectPopupInterfaceStyle": {
     "message": "Select popup interface style"
   },

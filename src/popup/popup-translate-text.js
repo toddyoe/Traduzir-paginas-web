@@ -319,21 +319,22 @@ twpConfig
       );
     };
 
-    const targetLanguageButtons = document.querySelectorAll(
-      "#setTargetLanguage li"
-    );
+    // Dynamically create language buttons
+    const setTargetLanguageUl = document.getElementById("setTargetLanguage");
+    setTargetLanguageUl.innerHTML = "";
 
-    for (let i = 0; i < 3; i++) {
-      if (currentTargetLanguages[i] == currentTargetLanguage) {
-        targetLanguageButtons[i].classList.add("selected");
+    currentTargetLanguages.forEach((langCode) => {
+      const li = document.createElement("li");
+      li.setAttribute("value", langCode);
+      li.setAttribute("title", twpLang.codeToLanguage(langCode));
+      li.textContent = langCode;
+
+      if (langCode === currentTargetLanguage) {
+        li.classList.add("selected");
       }
-      targetLanguageButtons[i].textContent = currentTargetLanguages[i];
-      targetLanguageButtons[i].setAttribute("value", currentTargetLanguages[i]);
-      targetLanguageButtons[i].setAttribute(
-        "title",
-        twpLang.codeToLanguage(currentTargetLanguages[i])
-      );
-    }
+
+      setTargetLanguageUl.appendChild(li);
+    });
 
     switch (currentTextTranslatorService) {
       case "yandex":
@@ -382,8 +383,43 @@ twpConfig
       sLibre.setAttribute("hidden", "");
     }
 
+    // Function to rebuild language buttons
+    function rebuildLanguageButtons() {
+      const setTargetLanguageUl = document.getElementById("setTargetLanguage");
+      setTargetLanguageUl.innerHTML = "";
+
+      currentTargetLanguages.forEach((langCode) => {
+        const li = document.createElement("li");
+        li.setAttribute("value", langCode);
+        li.setAttribute("title", twpLang.codeToLanguage(langCode));
+        li.textContent = langCode;
+
+        if (langCode === currentTargetLanguage) {
+          li.classList.add("selected");
+        }
+
+        setTargetLanguageUl.appendChild(li);
+      });
+    }
+
     twpConfig.onChanged((name, newvalue) => {
       switch (name) {
+        case "targetLanguages": {
+          currentTargetLanguages = newvalue;
+          rebuildLanguageButtons();
+          break;
+        }
+        case "targetLanguageTextTranslation": {
+          currentTargetLanguage = newvalue;
+          // Update selected language button
+          document.querySelectorAll("#setTargetLanguage li").forEach((li) => {
+            li.classList.remove("selected");
+            if (li.getAttribute("value") === currentTargetLanguage) {
+              li.classList.add("selected");
+            }
+          });
+          break;
+        }
         case "enabledServices": {
           const enabledServices = newvalue;
           if (enabledServices.includes("google")) {

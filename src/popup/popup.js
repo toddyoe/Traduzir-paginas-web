@@ -154,10 +154,18 @@ twpConfig
     });
 
     let targetLanguages = twpConfig.get("targetLanguages");
-    for (let i = 1; i < 4; i++) {
+    // Dynamically set button values based on available target languages
+    for (let i = 1; i < twpButtons.length && i - 1 < targetLanguages.length; i++) {
       const button = twpButtons[i];
       button.value = targetLanguages[i - 1];
       button.textContent = twpLang.codeToLanguage(targetLanguages[i - 1]);
+      button.style.display = "block";
+    }
+    // Hide unused buttons if there are fewer than 3 languages
+    for (let i = targetLanguages.length + 1; i < twpButtons.length; i++) {
+      if (twpButtons[i]) {
+        twpButtons[i].style.display = "none";
+      }
     }
 
     chrome.tabs.query(

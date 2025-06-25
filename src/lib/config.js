@@ -244,28 +244,34 @@ const twpConfig = (function () {
         });
       }
 
-      // Probably at this point it doesn't have 3 target languages.
+      // Only initialize target languages if completely empty
+      if (config.targetLanguages.length === 0) {
+        // try to get target languages through the user defined languages in the browser configuration.
+        for (let lang of acceptedLanguages) {
+          if (config.targetLanguages.length >= 3) break;
+          lang = twpLang.fixTLanguageCode(lang);
+          if (lang && config.targetLanguages.indexOf(lang) === -1) {
+            config.targetLanguages.push(lang);
+          }
+        }
 
-      // try to get the 3 target languages through the user defined languages in the browser configuration.
-      for (let lang of acceptedLanguages) {
-        if (config.targetLanguages.length >= 3) break;
-        lang = twpLang.fixTLanguageCode(lang);
-        if (lang && config.targetLanguages.indexOf(lang) === -1) {
-          config.targetLanguages.push(lang);
+        // then try to use de array defaultTargetLanguages ["en", "es", "de"]
+        for (const lang in defaultTargetLanguages) {
+          if (config.targetLanguages.length >= 3) break;
+          if (
+            config.targetLanguages.indexOf(defaultTargetLanguages[lang]) === -1
+          ) {
+            config.targetLanguages.push(defaultTargetLanguages[lang]);
+          }
+        }
+
+        // if still empty, use default languages
+        if (config.targetLanguages.length === 0) {
+          config.targetLanguages = [...defaultTargetLanguages];
         }
       }
 
-      // then try to use de array defaultTargetLanguages ["en", "es", "de"]
-      for (const lang in defaultTargetLanguages) {
-        if (config.targetLanguages.length >= 3) break;
-        if (
-          config.targetLanguages.indexOf(defaultTargetLanguages[lang]) === -1
-        ) {
-          config.targetLanguages.push(defaultTargetLanguages[lang]);
-        }
-      }
-
-      // if targetLanguages is bigger than 3 remove the surplus
+      // ensure at most 3 languages (but allow 1-3)
       while (config.targetLanguages.length > 3) config.targetLanguages.pop();
 
       /*
@@ -444,7 +450,8 @@ const twpConfig = (function () {
   };
 
   /**
-   * Add a new lang to the targetLanguages and remove the last target language. If the language is already in the targetLanguages then move it to the first position
+   * Add a new lang to the targetLanguages. If the language is already in the targetLanguages then move it to the first position.
+   * If adding would exceed 3 languages, remove the last one.
    * @example
    * addTargetLanguage("de")
    * @param {string} lang - langCode
@@ -458,13 +465,67 @@ const twpConfig = (function () {
     const index = targetLanguages.indexOf(lang);
     if (index === -1) {
       targetLanguages.unshift(lang);
-      targetLanguages.pop();
+      // ensure max 3 languages
+      while (targetLanguages.length > 3) {
+        targetLanguages.pop();
+      }
     } else {
       targetLanguages.splice(index, 1);
       targetLanguages.unshift(lang);
     }
 
     twpConfig.set("targetLanguages", targetLanguages);
+  }
+
+  /**
+   * Add a new target language to the end of targetLanguages array (for configuration UI)
+   * @param {string} lang - langCode
+   * @returns {boolean} success - true if added, false if already exists or would exceed 3 languages
+   */
+  function addNewTargetLanguage(lang) {
+    const targetLanguages = twpConfig.get("targetLanguages");
+    lang = twpLang.fixTLanguageCode(lang);
+    if (!lang) return false;
+
+    // check if already exists
+    if (targetLanguages.indexOf(lang) !== -1) return false;
+
+    // check if would exceed 3 languages
+    if (targetLanguages.length >= 3) return false;
+
+    targetLanguages.push(lang);
+    twpConfig.set("targetLanguages", targetLanguages);
+    return true;
+  }
+
+  /**
+   * Remove a target language from targetLanguages array (for configuration UI)
+   * @param {string} lang - langCode
+   * @returns {boolean} success - true if removed, false if not found or would leave 0 languages
+   */
+  function removeTargetLanguage(lang) {
+    const targetLanguages = twpConfig.get("targetLanguages");
+    lang = twpLang.fixTLanguageCode(lang);
+    if (!lang) return false;
+
+    // ensure at least 1 language remains
+    if (targetLanguages.length <= 1) return false;
+
+    const index = targetLanguages.indexOf(lang);
+    if (index === -1) return false;
+
+    targetLanguages.splice(index, 1);
+    twpConfig.set("targetLanguages", targetLanguages);
+
+    // if removed language was current target, switch to first available
+    if (twpConfig.get("targetLanguage") === lang) {
+      twpConfig.set("targetLanguage", targetLanguages[0]);
+    }
+    if (twpConfig.get("targetLanguageTextTranslation") === lang) {
+      twpConfig.set("targetLanguageTextTranslation", targetLanguages[0]);
+    }
+
+    return true;
   }
 
   /**
@@ -475,14 +536,15 @@ const twpConfig = (function () {
    * twpConfig.setTargetLanguage("de",  true)
    * @param {string} lang - langCode
    * @param {boolean} forTextToo - also call setTargetLanguageTextTranslation
+   * @param {boolean} skipAddToTargetLanguages - skip adding to targetLanguages array (for config page)
    * @returns
    */
-  twpConfig.setTargetLanguage = function (lang, forTextToo = false) {
+  twpConfig.setTargetLanguage = function (lang, forTextToo = false, skipAddToTargetLanguages = false) {
     const targetLanguages = twpConfig.get("targetLanguages");
     lang = twpLang.fixTLanguageCode(lang);
     if (!lang) return;
 
-    if (targetLanguages.indexOf(lang) === -1 || forTextToo) {
+    if (!skipAddToTargetLanguages && (targetLanguages.indexOf(lang) === -1 || forTextToo)) {
       addTargetLanguage(lang);
     }
 
@@ -570,6 +632,24 @@ const twpConfig = (function () {
       twpConfig.set("pageTranslatorService", pageEnabledServices[0]);
     }
     return twpConfig.get("pageTranslatorService");
+  };
+
+  /**
+   * Add a new target language (for configuration UI)
+   * @param {string} lang - langCode
+   * @returns {boolean} success
+   */
+  twpConfig.addNewTargetLanguage = function (lang) {
+    return addNewTargetLanguage(lang);
+  };
+
+  /**
+   * Remove a target language (for configuration UI)
+   * @param {string} lang - langCode
+   * @returns {boolean} success
+   */
+  twpConfig.removeTargetLanguage = function (lang) {
+    return removeTargetLanguage(lang);
   };
 
   return twpConfig;

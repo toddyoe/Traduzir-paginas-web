@@ -418,9 +418,7 @@ Promise.all([twpConfig.onReady(), getTabHostName()]).then(function (_) {
                 <hr>
                 <div id="drag">
                     <ul id="setTargetLanguage">
-                        <li value="en" title="English">en</li>
-                        <li value="es" title="Spanish">es</li>
-                        <li value="de" title="German">de</li>
+                        <!-- Dynamic language buttons will be inserted here -->
                     </ul>
                     <ul>
                         <li title="Google" id="sGoogle">g</li>
@@ -646,21 +644,22 @@ Promise.all([twpConfig.onReady(), getTabHostName()]).then(function (_) {
 
     twpI18n.translateDocument(shadowRoot);
 
-    const targetLanguageButtons = shadowRoot.querySelectorAll(
-      "#setTargetLanguage li"
-    );
+    // Dynamically create language buttons
+    const setTargetLanguageUl = shadowRoot.getElementById("setTargetLanguage");
+    setTargetLanguageUl.innerHTML = "";
 
-    for (let i = 0; i < 3; i++) {
-      if (currentTargetLanguages[i] == currentTargetLanguage) {
-        targetLanguageButtons[i].classList.add("selected");
+    currentTargetLanguages.forEach((langCode) => {
+      const li = document.createElement("li");
+      li.setAttribute("value", langCode);
+      li.setAttribute("title", twpLang.codeToLanguage(langCode));
+      li.textContent = langCode;
+
+      if (langCode === currentTargetLanguage) {
+        li.classList.add("selected");
       }
-      targetLanguageButtons[i].textContent = currentTargetLanguages[i];
-      targetLanguageButtons[i].setAttribute("value", currentTargetLanguages[i]);
-      targetLanguageButtons[i].setAttribute(
-        "title",
-        twpLang.codeToLanguage(currentTargetLanguages[i])
-      );
-    }
+
+      setTargetLanguageUl.appendChild(li);
+    });
 
     if (currentTextTranslatorService === "yandex") {
       sYandex.classList.add("selected");

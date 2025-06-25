@@ -1023,11 +1023,12 @@ if (typeof chrome.commands !== "undefined") {
           currentWindow: true,
         },
         (tabs) => {
-          twpConfig.setTargetLanguage(twpConfig.get("targetLanguages")[0]);
-          sendTranslatePageMessage(
-            tabs[0].id,
-            twpConfig.get("targetLanguages")[0]
-          );
+          const targetLanguages = twpConfig.get("targetLanguages");
+          const targetLang = targetLanguages[0] || targetLanguages[0]; // Always use first language
+          if (targetLang) {
+            twpConfig.setTargetLanguage(targetLang);
+            sendTranslatePageMessage(tabs[0].id, targetLang);
+          }
         }
       );
     } else if (command === "hotkey-translate-page-2") {
@@ -1037,11 +1038,12 @@ if (typeof chrome.commands !== "undefined") {
           currentWindow: true,
         },
         (tabs) => {
-          twpConfig.setTargetLanguage(twpConfig.get("targetLanguages")[1]);
-          sendTranslatePageMessage(
-            tabs[0].id,
-            twpConfig.get("targetLanguages")[1]
-          );
+          const targetLanguages = twpConfig.get("targetLanguages");
+          const targetLang = targetLanguages[1] || targetLanguages[0]; // Fallback to first language
+          if (targetLang) {
+            twpConfig.setTargetLanguage(targetLang);
+            sendTranslatePageMessage(tabs[0].id, targetLang);
+          }
         }
       );
     } else if (command === "hotkey-translate-page-3") {
@@ -1051,11 +1053,12 @@ if (typeof chrome.commands !== "undefined") {
           currentWindow: true,
         },
         (tabs) => {
-          twpConfig.setTargetLanguage(twpConfig.get("targetLanguages")[2]);
-          sendTranslatePageMessage(
-            tabs[0].id,
-            twpConfig.get("targetLanguages")[2]
-          );
+          const targetLanguages = twpConfig.get("targetLanguages");
+          const targetLang = targetLanguages[2] || targetLanguages[0]; // Fallback to first language
+          if (targetLang) {
+            twpConfig.setTargetLanguage(targetLang);
+            sendTranslatePageMessage(tabs[0].id, targetLang);
+          }
         }
       );
     } else if (command === "hotkey-hot-translate-selected-text") {
