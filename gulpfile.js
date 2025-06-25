@@ -226,6 +226,17 @@ gulp.task("chrome-sign", (cb) => {
   }
 });
 
+gulp.task("copy-to-stable-dir", (cb) => {
+  const targetDir = "build/TWP-Chromium";
+  // 清理目标目录
+  fs.rmSync(targetDir, { recursive: true, force: true });
+
+  // 复制到版本无关的目录
+  return gulp
+    .src([`build/${chromium_folder_name}/**/**`], {encoding: false})
+    .pipe(gulp.dest(targetDir));
+});
+
 gulp.task(
   "firefox-build",
   gulp.series(
@@ -245,7 +256,8 @@ gulp.task(
     "chrome-copy-from-firefox",
     "chrome-rename",
     "chrome-zip",
-    "chrome-sign"
+    "chrome-sign",
+    "copy-to-stable-dir"
   )
 );
 
