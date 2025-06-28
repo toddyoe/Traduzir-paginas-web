@@ -723,9 +723,10 @@ const translationService = (function () {
               }
             })
             .catch((e) => {
-              console.error(e);
+              console.error(`Translation request failed for service ${this.serviceName}:`, e);
               for (const transInfo of request) {
                 transInfo.status = "error";
+                transInfo.translatedText = "";
                 //this.translationsInProgress.delete([sourceLanguage, targetLanguage, transInfo.originalText])
               }
             })
@@ -1478,9 +1479,21 @@ const translationService = (function () {
         isDeepLX: false
       };
     }
+
+    // Validate configuration
+    if (!config || typeof config !== 'object') {
+      throw new Error('Invalid DeepL configuration: config must be an object');
+    }
+
     if (config.isDeepLX) {
+      if (!config.apiUrl) {
+        throw new Error('Invalid DeepLX configuration: apiUrl is required');
+      }
       return createDeepLXService(config);
     } else {
+      if (!config.apiKey) {
+        throw new Error('Invalid DeepL configuration: apiKey is required');
+      }
       return createDeepLOfficialService(config.apiKey);
     }
   };
@@ -1646,10 +1659,50 @@ const translationService = (function () {
   serviceList.set("google", googleService);
   serviceList.set("yandex", yandexService);
   serviceList.set("bing", bingService);
-  serviceList.set(
-    "deepl",
-    /** @type {Service} */ /** @type {?} */ (deeplService)
-  );
+  // Note: DeepL service will be set after config is ready to avoid using wrong service
+
+  /** @type {boolean} */
+  let deepLServiceInitialized = false;
+
+  /**
+   * Initialize DeepL service based on current configuration
+   * This ensures the correct service (DeepLX or original) is used
+   */
+  const initializeDeepLService = (force = false) => {
+    if (deepLServiceInitialized && !force) {
+      return; // Already initialized, skip unless forced
+    }
+
+    try {
+      // Ensure config is available before proceeding
+      if (typeof twpConfig === 'undefined' || typeof twpConfig.get !== 'function') {
+        throw new Error('Configuration not available');
+      }
+
+      const customServices = twpConfig.get("customServices") || [];
+      const deepl_freeapi = customServices.find((cs) => cs.name === "deepl_freeapi");
+
+      if (deepl_freeapi) {
+        // Use configured DeepLX or official API service
+        if (typeof console !== 'undefined' && console.log) {
+          console.log("TWP: Initializing DeepL service with custom configuration:", deepl_freeapi.isDeepLX ? "DeepLX" : "Official API");
+        }
+        serviceList.set("deepl", createDeeplFreeApiService(deepl_freeapi));
+      } else {
+        // Fallback to original DeepL service (opens web page)
+        if (typeof console !== 'undefined' && console.log) {
+          console.log("TWP: Initializing DeepL service with default web-based service");
+        }
+        serviceList.set("deepl", /** @type {Service} */ /** @type {?} */ (deeplService));
+      }
+      deepLServiceInitialized = true;
+    } catch (error) {
+      // Fallback to original service if configuration fails
+      console.error("TWP: Failed to initialize DeepL service, using fallback:", error);
+      serviceList.set("deepl", /** @type {Service} */ /** @type {?} */ (deeplService));
+      deepLServiceInitialized = true;
+    }
+  };
 
   /**
    * Get translation service from your name
@@ -1658,14 +1711,61 @@ const translationService = (function () {
    * @returns {Service} service
    */
   const getSafeServiceByName = (serviceName) => {
-    if (
-      twpConfig.get("enabledServices").includes(serviceName) ||
-      twpConfig.get("customServices").find((cs) => cs.name === serviceName)
-    ) {
-      return serviceList.get(serviceName);
-    } else {
+    try {
+      // Read configuration once
+      const enabledServices = twpConfig.get("enabledServices") || [];
+      const customServices = twpConfig.get("customServices") || [];
+
+      const isEnabled = enabledServices.includes(serviceName) ||
+                       customServices.find((cs) => cs.name === serviceName);
+
+      if (!isEnabled) {
+        return null;
+      }
+
+      // Fast path: if service exists, return it directly
+      if (serviceList.has(serviceName)) {
+        return serviceList.get(serviceName);
+      }
+
+      // Slow path: service doesn't exist, check if we should initialize it
+      if (serviceName === "deepl" && !deepLServiceInitialized) {
+        initializeDeepLService();
+        return serviceList.get(serviceName);
+      }
+
+      return null;
+    } catch (error) {
+      console.error("TWP: Error in getSafeServiceByName:", error);
       return null;
     }
+  };
+
+  /**
+   * Get a safe translation service with fallback and error handling
+   * @param {string} originalServiceName
+   * @param {string} targetLanguage
+   * @param {boolean} forPageTranslation
+   * @returns {Service} service
+   */
+  const getTranslationService = (originalServiceName, targetLanguage, forPageTranslation = false) => {
+    let serviceName = twpLang.getAlternativeService(
+      targetLanguage,
+      originalServiceName,
+      forPageTranslation
+    );
+
+    // Fallback to original service if no alternative found
+    if (!serviceName) {
+      serviceName = originalServiceName;
+    }
+
+    const service = getSafeServiceByName(serviceName);
+    if (!service) {
+      throw new Error(`Translation service '${serviceName}' not available`);
+    }
+
+    return service;
   };
 
   translationService.translateHTML = async (
@@ -1676,12 +1776,7 @@ const translationService = (function () {
     dontSaveInPersistentCache = false,
     dontSortResults = false
   ) => {
-    serviceName = twpLang.getAlternativeService(
-      targetLanguage,
-      serviceName,
-      true
-    );
-    const service = getSafeServiceByName(serviceName);
+    const service = getTranslationService(serviceName, targetLanguage, true);
     return await service.translate(
       sourceLanguage,
       targetLanguage,
@@ -1698,12 +1793,7 @@ const translationService = (function () {
     sourceArray,
     dontSaveInPersistentCache = false
   ) => {
-    serviceName = twpLang.getAlternativeService(
-      targetLanguage,
-      serviceName,
-      false
-    );
-    const service = getSafeServiceByName(serviceName);
+    const service = getTranslationService(serviceName, targetLanguage, false);
     return (
       await service.translate(
         sourceLanguage,
@@ -1721,12 +1811,7 @@ const translationService = (function () {
     originalText,
     dontSaveInPersistentCache = false
   ) => {
-    serviceName = twpLang.getAlternativeService(
-      targetLanguage,
-      serviceName,
-      false
-    );
-    const service = getSafeServiceByName(serviceName);
+    const service = getTranslationService(serviceName, targetLanguage, false);
     return (
       await service.translate(
         sourceLanguage,
@@ -1774,8 +1859,9 @@ const translationService = (function () {
         )
         .then((results) => sendResponse(results))
         .catch((e) => {
-          sendResponse();
-          console.error(e);
+          console.error(`Translation failed for service ${request.translationService}:`, e);
+          // Send empty result instead of undefined to prevent UI issues
+          sendResponse("");
         });
 
       return true;
@@ -1790,8 +1876,9 @@ const translationService = (function () {
         )
         .then((results) => sendResponse(results))
         .catch((e) => {
-          sendResponse();
-          console.error(e);
+          console.error(`Translation failed for service ${request.translationService}:`, e);
+          // Send empty result instead of undefined to prevent UI issues
+          sendResponse("");
         });
 
       return true;
@@ -1809,15 +1896,11 @@ const translationService = (function () {
     } else if (request.action === "removeLibreService") {
       serviceList.delete("libre");
     } else if (request.action === "createDeeplFreeApiService") {
-      serviceList.set(
-        "deepl",
-        createDeeplFreeApiService(request.deepl_freeapi)
-      );
+      // Re-initialize DeepL service to pick up new configuration
+      initializeDeepLService(true);
     } else if (request.action === "removeDeeplFreeApiService") {
-      serviceList.set(
-        "deepl",
-        /** @type {Service} */ /** @type {?} */ (deeplService)
-      );
+      // Re-initialize DeepL service to use default configuration
+      initializeDeepLService(true);
     }
   });
 
@@ -1829,14 +1912,8 @@ const translationService = (function () {
       serviceList.set("libre", createLibreService(libre.url, libre.apiKey));
     }
 
-    if (
-      twpConfig.get("customServices").find((cs) => cs.name === "deepl_freeapi")
-    ) {
-      const deepl_freeapi = twpConfig
-        .get("customServices")
-        .find((cs) => cs.name === "deepl_freeapi");
-      serviceList.set("deepl", createDeeplFreeApiService(deepl_freeapi));
-    }
+    // Initialize DeepL service using the centralized function
+    initializeDeepLService();
 
     const proxyServers = twpConfig.get("proxyServers");
     if (proxyServers?.google?.translateServer) {
@@ -1857,6 +1934,9 @@ const translationService = (function () {
         url.host = "translate-pa.googleapis.com";
         googleService.baseURL = url.toString();
       }
+    } else if (name === "customServices") {
+      // Re-initialize DeepL service when custom services configuration changes
+      initializeDeepLService(true);
     }
   });
 
